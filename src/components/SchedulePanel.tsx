@@ -20,6 +20,7 @@ interface ScheduleItem {
   duration_minutes: number;
   position: number;
   task_date: string;
+  status: "pendente" | "fazendo" | "feita";
 }
 
 interface Props {
@@ -27,6 +28,18 @@ interface Props {
   userId: string;
   tasks: Task[];
 }
+
+const STATUS_OPTIONS: { value: ScheduleItem["status"]; label: string }[] = [
+  { value: "pendente", label: "Pendente" },
+  { value: "fazendo", label: "Fazendo" },
+  { value: "feita", label: "Feita" },
+];
+
+const statusColor: Record<ScheduleItem["status"], string> = {
+  pendente: "bg-muted text-muted-foreground",
+  fazendo: "bg-primary/15 text-primary",
+  feita: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+};
 
 // Durations: 5, 10, 15, then +15 up to 240
 const DURATIONS: number[] = [5, 10, 15, ...Array.from({ length: 15 }, (_, i) => 30 + i * 15)];
