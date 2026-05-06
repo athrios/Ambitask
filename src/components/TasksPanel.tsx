@@ -78,7 +78,7 @@ export const TasksPanel = ({ date, userId, onTasksChange }: Props) => {
     load();
   };
 
-  const setStatus = async (task: Task, status: Task["status"]) => {
+  const setStatus = async (task: Task, status: "pendente" | "fazendo" | "feita") => {
     const { error } = await supabase
       .from("tasks")
       .update({ status, done: status === "feita" })
