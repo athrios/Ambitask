@@ -68,7 +68,7 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
       .eq("task_date", date)
       .order("start_time", { ascending: true });
     if (error) return toast.error(error.message);
-    setItems(data ?? []);
+    setItems((data ?? []) as ScheduleItem[]);
   };
 
   useEffect(() => {
