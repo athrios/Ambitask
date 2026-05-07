@@ -146,8 +146,8 @@ export const TasksPanel = ({
         .order("position", { ascending: true })
         .order("created_at", { ascending: true });
       const grouped: Record<string, Subtask[]> = {};
-      (subs ?? []).forEach((s: Subtask) => {
-        (grouped[s.task_id] ||= []).push(s);
+      (subs ?? []).forEach((s) => {
+        (grouped[s.task_id] ||= []).push(s as unknown as Subtask);
       });
       setSubtasks(grouped);
     } else setSubtasks({});
