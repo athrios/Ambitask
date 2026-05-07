@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,13 +8,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, Plus } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Trash2, Download } from "lucide-react";
 import { toast } from "sonner";
 import type { Task } from "./TasksPanel";
 
 interface ScheduleItem {
   id: string;
-  start_time: string; // HH:MM:SS
+  start_time: string;
   title: string;
   duration_minutes: number;
   position: number;
@@ -36,30 +41,30 @@ const STATUS_OPTIONS: { value: ScheduleItem["status"]; label: string }[] = [
 ];
 
 const statusColor: Record<ScheduleItem["status"], string> = {
-  pendente: "bg-muted text-muted-foreground",
-  fazendo: "bg-primary/15 text-primary",
-  feita: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  pendente: "bg-muted text-muted-foreground hover:bg-muted",
+  fazendo: "bg-primary/15 text-primary hover:bg-primary/20",
+  feita: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20",
 };
 
-// Durations: 5, 10, 15, then +15 up to 240
 const DURATIONS: number[] = [5, 10, 15, ...Array.from({ length: 15 }, (_, i) => 30 + i * 15)];
 
-const fmt = (t: string) => t.slice(0, 5);
+const PLACEHOLDER_COUNT = 10;
+const DAY_START = "09:00";
+const DAY_END_MIN = 18 * 60;
 
-const addMinutes = (time: string, mins: number) => {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + mins;
-  const nh = Math.floor((total % (24 * 60)) / 60);
-  const nm = total % 60;
-  return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+const toMin = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
 };
+const fromMin = (n: number) => {
+  const h = Math.floor((n % (24 * 60)) / 60);
+  const m = n % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+const fmt = (t: string) => t.slice(0, 5);
 
 export const SchedulePanel = ({ date, userId, tasks }: Props) => {
   const [items, setItems] = useState<ScheduleItem[]>([]);
-  const [start, setStart] = useState("09:00");
-  const [title, setTitle] = useState("");
-  const [duration, setDuration] = useState(15);
-  const [taskPick, setTaskPick] = useState<string>("");
 
   const load = async () => {
     const { data, error } = await supabase
@@ -76,36 +81,31 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
-  // Auto-fill next start when last item changes
-  useEffect(() => {
-    if (items.length > 0) {
-      const last = items[items.length - 1];
-      setStart(addMinutes(last.start_time.slice(0, 5), last.duration_minutes));
-    }
+  const placeholders = useMemo(() => {
+    const filled = items.length;
+    const remaining = Math.max(0, PLACEHOLDER_COUNT - filled);
+    const lastEnd =
+      filled > 0
+        ? toMin(items[items.length - 1].start_time.slice(0, 5)) +
+          items[items.length - 1].duration_minutes
+        : toMin(DAY_START);
+    const slotSize = remaining > 0 ? Math.max(15, Math.round((DAY_END_MIN - lastEnd) / remaining / 15) * 15) : 60;
+    return Array.from({ length: remaining }).map((_, i) => ({
+      start: fromMin(lastEnd + i * slotSize),
+      duration: 60,
+    }));
   }, [items]);
 
-  const onPickTask = (val: string) => {
-    setTaskPick(val);
-    const found = tasks.find((t) => t.id === val);
-    if (found) setTitle(found.title);
-  };
-
-  const add = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const t = title.trim();
-    if (!t) return toast.error("Informe a tarefa");
-    if (t.length > 200) return toast.error("Título muito longo");
+  const insertItem = async (start: string, title: string, duration: number) => {
     const { error } = await supabase.from("schedule_items").insert({
       user_id: userId,
       task_date: date,
       start_time: start + ":00",
-      title: t,
+      title: title.trim(),
       duration_minutes: duration,
       position: items.length,
     });
     if (error) return toast.error(error.message);
-    setTitle("");
-    setTaskPick("");
     load();
   };
 
@@ -123,129 +123,220 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
 
   return (
     <section className="space-y-4">
-      <header>
-        <h2 className="text-lg font-semibold tracking-tight">Cronograma diário</h2>
-        <p className="text-sm text-muted-foreground">
-          Encadeie tarefas por horário. Ajuste o início se quiser intervalos.
-        </p>
+      <header className="flex items-end justify-between">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Cronograma diário</h2>
+          <p className="text-sm text-muted-foreground">
+            Modelo de {DAY_START} às 18:00. Edite os horários e durações livremente.
+          </p>
+        </div>
       </header>
 
-      <form onSubmit={add} className="grid grid-cols-12 gap-2 items-end p-3 rounded-lg border bg-card">
-        <div className="col-span-12 sm:col-span-2">
-          <label className="text-xs text-muted-foreground">Início</label>
-          <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-        </div>
-        <div className="col-span-12 sm:col-span-6 space-y-1">
-          <label className="text-xs text-muted-foreground">Tarefa</label>
-          {tasks.length > 0 && (
-            <Select value={taskPick} onValueChange={onPickTask}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Escolher das tarefas isoladas..." />
-              </SelectTrigger>
-              <SelectContent>
-                {tasks.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ou escreva uma nova tarefa..."
-            maxLength={200}
+      <ul className="space-y-1 rounded-lg border bg-card divide-y">
+        {items.map((it) => (
+          <ScheduleRow
+            key={it.id}
+            start={fmt(it.start_time)}
+            title={it.title}
+            duration={it.duration_minutes}
+            status={it.status}
+            tasks={tasks}
+            onChangeStart={(v) => updateItem(it.id, { start_time: v + ":00" })}
+            onChangeTitle={(v) => updateItem(it.id, { title: v })}
+            onChangeDuration={(v) => updateItem(it.id, { duration_minutes: v })}
+            onChangeStatus={(v) => updateItem(it.id, { status: v })}
+            onImport={(v) => updateItem(it.id, { title: v })}
+            onRemove={() => remove(it.id)}
           />
-        </div>
-        <div className="col-span-8 sm:col-span-3">
-          <label className="text-xs text-muted-foreground">Duração</label>
-          <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DURATIONS.map((d) => (
-                <SelectItem key={d} value={String(d)}>
-                  {d} min
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="col-span-4 sm:col-span-1">
-          <Button type="submit" size="icon" className="w-full" aria-label="Adicionar">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-      </form>
-
-      <ul className="space-y-1">
-        {items.length === 0 && (
-          <li className="text-sm text-muted-foreground py-6 text-center">
-            Nenhum bloco no cronograma ainda.
-          </li>
-        )}
-        {items.map((it) => {
-          const end = addMinutes(it.start_time.slice(0, 5), it.duration_minutes);
-          return (
-            <li
-              key={it.id}
-              className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-md hover:bg-secondary/60 group"
-            >
-              <Input
-                type="time"
-                value={fmt(it.start_time)}
-                onChange={(e) => updateItem(it.id, { start_time: e.target.value + ":00" })}
-                className="h-8 text-xs w-[100px]"
-              />
-              <span className={`flex-1 min-w-[120px] text-sm truncate ${it.status === "feita" ? "line-through text-muted-foreground" : ""}`}>
-                {it.title}
-              </span>
-              <Select
-                value={String(it.duration_minutes)}
-                onValueChange={(v) => updateItem(it.id, { duration_minutes: Number(v) })}
-              >
-                <SelectTrigger className="h-8 text-xs w-[90px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATIONS.map((d) => (
-                    <SelectItem key={d} value={String(d)}>
-                      {d} min
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                → {end}
-              </span>
-              <Select
-                value={it.status}
-                onValueChange={(v) => updateItem(it.id, { status: v as ScheduleItem["status"] })}
-              >
-                <SelectTrigger className={`h-7 w-[110px] text-xs border-0 ${statusColor[it.status]}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value} className="text-xs">
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <button
-                onClick={() => remove(it.id)}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition"
-                aria-label="Remover"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          );
-        })}
+        ))}
+        {placeholders.map((p, i) => (
+          <PlaceholderRow
+            key={`p-${i}`}
+            initialStart={p.start}
+            initialDuration={p.duration}
+            tasks={tasks}
+            onCommit={(start, title, duration) => insertItem(start, title, duration)}
+          />
+        ))}
       </ul>
     </section>
   );
 };
+
+interface RowProps {
+  start: string;
+  title: string;
+  duration: number;
+  status: ScheduleItem["status"];
+  tasks: Task[];
+  onChangeStart: (v: string) => void;
+  onChangeTitle: (v: string) => void;
+  onChangeDuration: (v: number) => void;
+  onChangeStatus: (v: ScheduleItem["status"]) => void;
+  onImport: (v: string) => void;
+  onRemove: () => void;
+}
+
+const ScheduleRow = ({
+  start,
+  title,
+  duration,
+  status,
+  tasks,
+  onChangeStart,
+  onChangeTitle,
+  onChangeDuration,
+  onChangeStatus,
+  onImport,
+  onRemove,
+}: RowProps) => {
+  const [localTitle, setLocalTitle] = useState(title);
+  useEffect(() => setLocalTitle(title), [title]);
+  const end = fromMin(toMin(start) + duration);
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 px-3 py-2 group">
+      <Input
+        type="time"
+        value={start}
+        onChange={(e) => onChangeStart(e.target.value)}
+        className="h-8 text-xs w-[100px]"
+      />
+      <ImportButton tasks={tasks} onPick={onImport} />
+      <Input
+        value={localTitle}
+        onChange={(e) => setLocalTitle(e.target.value)}
+        onBlur={() => localTitle !== title && onChangeTitle(localTitle)}
+        placeholder="Tarefa..."
+        className={`h-8 text-sm flex-1 min-w-[160px] ${status === "feita" ? "line-through text-muted-foreground" : ""}`}
+      />
+      <Select value={String(duration)} onValueChange={(v) => onChangeDuration(Number(v))}>
+        <SelectTrigger className="h-8 text-xs w-[90px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DURATIONS.map((d) => (
+            <SelectItem key={d} value={String(d)}>
+              {d} min
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-xs text-muted-foreground hidden md:inline">→ {end}</span>
+      <Select value={status} onValueChange={(v) => onChangeStatus(v as ScheduleItem["status"])}>
+        <SelectTrigger
+          className={`h-7 w-[110px] text-xs border-0 rounded-full ${statusColor[status]}`}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {STATUS_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value} className="text-xs">
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <button
+        onClick={onRemove}
+        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition"
+        aria-label="Remover"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </li>
+  );
+};
+
+const PlaceholderRow = ({
+  initialStart,
+  initialDuration,
+  tasks,
+  onCommit,
+}: {
+  initialStart: string;
+  initialDuration: number;
+  tasks: Task[];
+  onCommit: (start: string, title: string, duration: number) => void;
+}) => {
+  const [start, setStart] = useState(initialStart);
+  const [title, setTitle] = useState("");
+  const [duration, setDuration] = useState(initialDuration);
+  useEffect(() => setStart(initialStart), [initialStart]);
+  const end = fromMin(toMin(start) + duration);
+
+  const commit = (t: string) => {
+    if (t.trim()) onCommit(start, t, duration);
+  };
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 px-3 py-2 opacity-70 hover:opacity-100 transition">
+      <Input
+        type="time"
+        value={start}
+        onChange={(e) => setStart(e.target.value)}
+        className="h-8 text-xs w-[100px]"
+      />
+      <ImportButton
+        tasks={tasks}
+        onPick={(t) => {
+          setTitle(t);
+          commit(t);
+        }}
+      />
+      <Input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => commit(title)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        placeholder="—"
+        className="h-8 text-sm flex-1 min-w-[160px] bg-transparent"
+      />
+      <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
+        <SelectTrigger className="h-8 text-xs w-[90px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DURATIONS.map((d) => (
+            <SelectItem key={d} value={String(d)}>
+              {d} min
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-xs text-muted-foreground hidden md:inline">→ {end}</span>
+      <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground w-[110px] text-center">
+        Pendente
+      </span>
+      <span className="w-4" />
+    </li>
+  );
+};
+
+const ImportButton = ({ tasks, onPick }: { tasks: Task[]; onPick: (title: string) => void }) => (
+  <DropdownMenu>
+    <DropdownMenuTrigger
+      className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition"
+      aria-label="Importar tarefa"
+      title="Importar das tarefas isoladas"
+    >
+      <Download className="h-3.5 w-3.5" />
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="max-h-64 overflow-auto w-56">
+      {tasks.length === 0 && (
+        <DropdownMenuItem disabled className="text-xs">
+          Nenhuma tarefa isolada
+        </DropdownMenuItem>
+      )}
+      {tasks.map((t) => (
+        <DropdownMenuItem key={t.id} onSelect={() => onPick(t.title)} className="text-sm">
+          {t.title}
+        </DropdownMenuItem>
+      ))}
+    </DropdownMenuContent>
+  </DropdownMenu>
+);
