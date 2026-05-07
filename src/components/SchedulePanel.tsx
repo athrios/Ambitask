@@ -163,11 +163,15 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
             duration={it.duration_minutes}
             status={it.status}
             tasks={tasks}
+            linkedTaskId={it.task_id}
             onChangeStart={(v) => updateItem(it.id, { start_time: v + ":00" })}
             onChangeTitle={(v) => updateItem(it.id, { title: v })}
             onChangeDuration={(v) => updateItem(it.id, { duration_minutes: v })}
             onChangeStatus={(v) => updateItem(it.id, { status: v })}
-            onImport={(v) => updateItem(it.id, { title: v })}
+            onImport={(task) =>
+              updateItem(it.id, { title: task.title, task_id: task.id, status: task.status })
+            }
+            onUnlink={() => updateItem(it.id, { task_id: null })}
             onRemove={() => remove(it.id)}
           />
         ))}
@@ -177,7 +181,9 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
             initialStart={p.start}
             initialDuration={p.duration}
             tasks={tasks}
-            onCommit={(start, title, duration) => insertItem(start, title, duration)}
+            onCommit={(start, title, duration, taskId) =>
+              insertItem(start, title, duration, taskId)
+            }
           />
         ))}
       </ul>
@@ -191,11 +197,13 @@ interface RowProps {
   duration: number;
   status: ScheduleItem["status"];
   tasks: Task[];
+  linkedTaskId: string | null;
   onChangeStart: (v: string) => void;
   onChangeTitle: (v: string) => void;
   onChangeDuration: (v: number) => void;
   onChangeStatus: (v: ScheduleItem["status"]) => void;
-  onImport: (v: string) => void;
+  onImport: (task: Task) => void;
+  onUnlink: () => void;
   onRemove: () => void;
 }
 
@@ -205,11 +213,13 @@ const ScheduleRow = ({
   duration,
   status,
   tasks,
+  linkedTaskId,
   onChangeStart,
   onChangeTitle,
   onChangeDuration,
   onChangeStatus,
   onImport,
+  onUnlink,
   onRemove,
 }: RowProps) => {
   const [localTitle, setLocalTitle] = useState(title);
@@ -225,13 +235,24 @@ const ScheduleRow = ({
         className="h-8 text-xs w-[100px]"
       />
       <ImportButton tasks={tasks} onPick={onImport} />
-      <Input
-        value={localTitle}
-        onChange={(e) => setLocalTitle(e.target.value)}
-        onBlur={() => localTitle !== title && onChangeTitle(localTitle)}
-        placeholder="Tarefa..."
-        className={`h-8 text-sm flex-1 min-w-[160px] ${status === "feita" ? "line-through text-muted-foreground" : ""}`}
-      />
+      <div className="flex-1 min-w-[160px] flex items-center gap-1">
+        {linkedTaskId && (
+          <button
+            onClick={onUnlink}
+            title="Tarefa vinculada — clique para desvincular"
+            className="text-[hsl(var(--status-fazendo))] hover:text-destructive transition shrink-0"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <Input
+          value={localTitle}
+          onChange={(e) => setLocalTitle(e.target.value)}
+          onBlur={() => localTitle !== title && onChangeTitle(localTitle)}
+          placeholder="Tarefa..."
+          className={`h-8 text-sm flex-1 ${status === "feita" ? "line-through text-muted-foreground" : ""}`}
+        />
+      </div>
       <Select value={String(duration)} onValueChange={(v) => onChangeDuration(Number(v))}>
         <SelectTrigger className="h-8 text-xs w-[90px]">
           <SelectValue />
