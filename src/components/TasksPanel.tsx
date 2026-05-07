@@ -81,7 +81,7 @@ interface Subtask {
 }
 
 export type TasksFilter = "all" | "today" | "done" | "kanban";
-type ViewMode = "list" | "table" | "cards";
+type ViewMode = "list" | "table" | "cards" | "kanban";
 
 interface Props {
   date: string;
