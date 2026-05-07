@@ -55,6 +55,9 @@ export type Database = {
           created_at: string
           done: boolean
           id: string
+          notes: string
+          position: number
+          status: string
           task_id: string
           title: string
           user_id: string
@@ -63,6 +66,9 @@ export type Database = {
           created_at?: string
           done?: boolean
           id?: string
+          notes?: string
+          position?: number
+          status?: string
           task_id: string
           title: string
           user_id: string
@@ -71,6 +77,9 @@ export type Database = {
           created_at?: string
           done?: boolean
           id?: string
+          notes?: string
+          position?: number
+          status?: string
           task_id?: string
           title?: string
           user_id?: string
@@ -89,7 +98,11 @@ export type Database = {
         Row: {
           created_at: string
           done: boolean
+          due_date: string | null
           id: string
+          notes: string
+          position: number
+          priority: string
           status: string
           task_date: string
           title: string
@@ -98,7 +111,11 @@ export type Database = {
         Insert: {
           created_at?: string
           done?: boolean
+          due_date?: string | null
           id?: string
+          notes?: string
+          position?: number
+          priority?: string
           status?: string
           task_date?: string
           title: string
@@ -107,7 +124,11 @@ export type Database = {
         Update: {
           created_at?: string
           done?: boolean
+          due_date?: string | null
           id?: string
+          notes?: string
+          position?: number
+          priority?: string
           status?: string
           task_date?: string
           title?: string
