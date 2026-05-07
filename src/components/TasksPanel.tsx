@@ -39,6 +39,7 @@ import {
   StickyNote,
   List,
   TableIcon,
+  Columns3,
   LayoutGrid,
   Pencil,
   Check,
@@ -81,7 +82,7 @@ interface Subtask {
 }
 
 export type TasksFilter = "all" | "today" | "done" | "kanban";
-type ViewMode = "list" | "table" | "cards";
+type ViewMode = "list" | "table" | "cards" | "kanban";
 
 interface Props {
   date: string;
@@ -187,6 +188,17 @@ export const TasksPanel = ({
   const updateTask = async (id: string, patch: Partial<Task>) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
+    // 2-way sync: if status/done changed, mirror to linked schedule_items
+    if (patch.status !== undefined || patch.done !== undefined) {
+      const newStatus = patch.status ?? (patch.done ? "feita" : undefined);
+      if (newStatus) {
+        await supabase
+          .from("schedule_items")
+          .update({ status: newStatus })
+          .eq("task_id", id)
+          .neq("status", "pulado");
+      }
+    }
     load();
   };
 
@@ -614,6 +626,7 @@ export const TasksPanel = ({
               ["list", List, "Lista"],
               ["table", TableIcon, "Tabela"],
               ["cards", LayoutGrid, "Cards"],
+              ["kanban", Columns3, "Kanban"],
             ] as const).map(([m, Icon, label]) => (
               <Tooltip key={m}>
                 <TooltipTrigger asChild>
@@ -771,6 +784,62 @@ export const TasksPanel = ({
                     />
                   )}
                   {expanded[t.id] && <SubsBlock t={t} />}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Kanban view */}
+        {view === "kanban" && filtered.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {TASK_STATUS.map((col) => {
+              const colTasks = filtered.filter((t) => (t.status ?? "pendente") === col.value);
+              return (
+                <div key={col.value} className="rounded-lg border bg-card/60 flex flex-col min-h-[200px]">
+                  <div className="px-3 py-2 border-b flex items-center justify-between">
+                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", statusPill[col.value])}>
+                      {col.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground tabular-nums">{colTasks.length}</span>
+                  </div>
+                  <div className="p-2 space-y-2 flex-1">
+                    {colTasks.map((t) => (
+                      <div key={t.id} className="rounded-md border bg-card p-2.5 space-y-2 group">
+                        <div className="flex items-start gap-2">
+                          <Checkbox
+                            checked={t.done}
+                            onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
+                            className="mt-0.5"
+                          />
+                          <TaskTitle t={t} />
+                          <RowActions t={t} />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                          <ProgressBadge t={t} />
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <Select value={t.status ?? "pendente"} onValueChange={(v) => setStatus(t, v as TaskStatus)}>
+                            <SelectTrigger className="h-7 w-[120px] text-[11px]">
+                              <SelectValue placeholder="Mover para..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TASK_STATUS.map((o) => (
+                                <SelectItem key={o.value} value={o.value} className="text-xs">
+                                  Mover → {o.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DueDate t={t} />
+                        </div>
+                      </div>
+                    ))}
+                    {colTasks.length === 0 && (
+                      <p className="text-[11px] text-muted-foreground text-center py-4">Vazio</p>
+                    )}
+                  </div>
                 </div>
               );
             })}

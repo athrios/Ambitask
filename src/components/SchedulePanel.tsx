@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Trash2, Download } from "lucide-react";
+import { Trash2, Download, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Task } from "./TasksPanel";
 
@@ -26,6 +26,7 @@ interface ScheduleItem {
   position: number;
   task_date: string;
   status: "pendente" | "fazendo" | "feita" | "pulado";
+  task_id: string | null;
 }
 
 interface Props {
@@ -98,7 +99,12 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
     }));
   }, [items]);
 
-  const insertItem = async (start: string, title: string, duration: number) => {
+  const insertItem = async (
+    start: string,
+    title: string,
+    duration: number,
+    taskId: string | null = null,
+  ) => {
     const { error } = await supabase.from("schedule_items").insert({
       user_id: userId,
       task_date: date,
@@ -106,6 +112,7 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
       title: title.trim(),
       duration_minutes: duration,
       position: items.length,
+      task_id: taskId,
     });
     if (error) return toast.error(error.message);
     load();
@@ -114,6 +121,19 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
   const updateItem = async (id: string, patch: Partial<ScheduleItem>) => {
     const { error } = await supabase.from("schedule_items").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
+    // 2-way sync: if status changed and item is linked, mirror to the task
+    if (patch.status !== undefined) {
+      const it = items.find((i) => i.id === id);
+      if (it?.task_id && patch.status !== "pulado") {
+        await supabase
+          .from("tasks")
+          .update({
+            status: patch.status,
+            done: patch.status === "feita",
+          })
+          .eq("id", it.task_id);
+      }
+    }
     load();
   };
 
@@ -143,11 +163,15 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
             duration={it.duration_minutes}
             status={it.status}
             tasks={tasks}
+            linkedTaskId={it.task_id}
             onChangeStart={(v) => updateItem(it.id, { start_time: v + ":00" })}
             onChangeTitle={(v) => updateItem(it.id, { title: v })}
             onChangeDuration={(v) => updateItem(it.id, { duration_minutes: v })}
             onChangeStatus={(v) => updateItem(it.id, { status: v })}
-            onImport={(v) => updateItem(it.id, { title: v })}
+            onImport={(task) =>
+              updateItem(it.id, { title: task.title, task_id: task.id, status: task.status })
+            }
+            onUnlink={() => updateItem(it.id, { task_id: null })}
             onRemove={() => remove(it.id)}
           />
         ))}
@@ -157,7 +181,9 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
             initialStart={p.start}
             initialDuration={p.duration}
             tasks={tasks}
-            onCommit={(start, title, duration) => insertItem(start, title, duration)}
+            onCommit={(start, title, duration, taskId) =>
+              insertItem(start, title, duration, taskId)
+            }
           />
         ))}
       </ul>
@@ -171,11 +197,13 @@ interface RowProps {
   duration: number;
   status: ScheduleItem["status"];
   tasks: Task[];
+  linkedTaskId: string | null;
   onChangeStart: (v: string) => void;
   onChangeTitle: (v: string) => void;
   onChangeDuration: (v: number) => void;
   onChangeStatus: (v: ScheduleItem["status"]) => void;
-  onImport: (v: string) => void;
+  onImport: (task: Task) => void;
+  onUnlink: () => void;
   onRemove: () => void;
 }
 
@@ -185,11 +213,13 @@ const ScheduleRow = ({
   duration,
   status,
   tasks,
+  linkedTaskId,
   onChangeStart,
   onChangeTitle,
   onChangeDuration,
   onChangeStatus,
   onImport,
+  onUnlink,
   onRemove,
 }: RowProps) => {
   const [localTitle, setLocalTitle] = useState(title);
@@ -205,13 +235,24 @@ const ScheduleRow = ({
         className="h-8 text-xs w-[100px]"
       />
       <ImportButton tasks={tasks} onPick={onImport} />
-      <Input
-        value={localTitle}
-        onChange={(e) => setLocalTitle(e.target.value)}
-        onBlur={() => localTitle !== title && onChangeTitle(localTitle)}
-        placeholder="Tarefa..."
-        className={`h-8 text-sm flex-1 min-w-[160px] ${status === "feita" ? "line-through text-muted-foreground" : ""}`}
-      />
+      <div className="flex-1 min-w-[160px] flex items-center gap-1">
+        {linkedTaskId && (
+          <button
+            onClick={onUnlink}
+            title="Tarefa vinculada — clique para desvincular"
+            className="text-[hsl(var(--status-fazendo))] hover:text-destructive transition shrink-0"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <Input
+          value={localTitle}
+          onChange={(e) => setLocalTitle(e.target.value)}
+          onBlur={() => localTitle !== title && onChangeTitle(localTitle)}
+          placeholder="Tarefa..."
+          className={`h-8 text-sm flex-1 ${status === "feita" ? "line-through text-muted-foreground" : ""}`}
+        />
+      </div>
       <Select value={String(duration)} onValueChange={(v) => onChangeDuration(Number(v))}>
         <SelectTrigger className="h-8 text-xs w-[90px]">
           <SelectValue />
@@ -259,7 +300,7 @@ const PlaceholderRow = ({
   initialStart: string;
   initialDuration: number;
   tasks: Task[];
-  onCommit: (start: string, title: string, duration: number) => void;
+  onCommit: (start: string, title: string, duration: number, taskId: string | null) => void;
 }) => {
   const [start, setStart] = useState(initialStart);
   const [title, setTitle] = useState("");
@@ -267,8 +308,8 @@ const PlaceholderRow = ({
   useEffect(() => setStart(initialStart), [initialStart]);
   const end = fromMin(toMin(start) + duration);
 
-  const commit = (t: string) => {
-    if (t.trim()) onCommit(start, t, duration);
+  const commit = (t: string, taskId: string | null = null) => {
+    if (t.trim()) onCommit(start, t, duration, taskId);
   };
 
   return (
@@ -281,9 +322,9 @@ const PlaceholderRow = ({
       />
       <ImportButton
         tasks={tasks}
-        onPick={(t) => {
-          setTitle(t);
-          commit(t);
+        onPick={(task) => {
+          setTitle(task.title);
+          commit(task.title, task.id);
         }}
       />
       <Input
@@ -319,7 +360,7 @@ const PlaceholderRow = ({
   );
 };
 
-const ImportButton = ({ tasks, onPick }: { tasks: Task[]; onPick: (title: string) => void }) => (
+const ImportButton = ({ tasks, onPick }: { tasks: Task[]; onPick: (task: Task) => void }) => (
   <DropdownMenu>
     <DropdownMenuTrigger
       className="h-8 w-8 inline-flex items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition"
@@ -335,7 +376,7 @@ const ImportButton = ({ tasks, onPick }: { tasks: Task[]; onPick: (title: string
         </DropdownMenuItem>
       )}
       {tasks.map((t) => (
-        <DropdownMenuItem key={t.id} onSelect={() => onPick(t.title)} className="text-sm">
+        <DropdownMenuItem key={t.id} onSelect={() => onPick(t)} className="text-sm">
           {t.title}
         </DropdownMenuItem>
       ))}
