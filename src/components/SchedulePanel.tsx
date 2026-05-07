@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Trash2, Download } from "lucide-react";
+import { Trash2, Download, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Task } from "./TasksPanel";
 
@@ -26,6 +26,7 @@ interface ScheduleItem {
   position: number;
   task_date: string;
   status: "pendente" | "fazendo" | "feita" | "pulado";
+  task_id: string | null;
 }
 
 interface Props {
