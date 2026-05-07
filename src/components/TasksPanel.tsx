@@ -187,6 +187,17 @@ export const TasksPanel = ({
   const updateTask = async (id: string, patch: Partial<Task>) => {
     const { error } = await supabase.from("tasks").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
+    // 2-way sync: if status/done changed, mirror to linked schedule_items
+    if (patch.status !== undefined || patch.done !== undefined) {
+      const newStatus = patch.status ?? (patch.done ? "feita" : undefined);
+      if (newStatus) {
+        await supabase
+          .from("schedule_items")
+          .update({ status: newStatus })
+          .eq("task_id", id)
+          .neq("status", "pulado");
+      }
+    }
     load();
   };
 
