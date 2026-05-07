@@ -626,6 +626,7 @@ export const TasksPanel = ({
               ["list", List, "Lista"],
               ["table", TableIcon, "Tabela"],
               ["cards", LayoutGrid, "Cards"],
+              ["kanban", Columns3, "Kanban"],
             ] as const).map(([m, Icon, label]) => (
               <Tooltip key={m}>
                 <TooltipTrigger asChild>
