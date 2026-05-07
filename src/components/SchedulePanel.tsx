@@ -25,7 +25,7 @@ interface ScheduleItem {
   duration_minutes: number;
   position: number;
   task_date: string;
-  status: "pendente" | "fazendo" | "feita";
+  status: "pendente" | "fazendo" | "feita" | "pulado";
 }
 
 interface Props {
@@ -37,13 +37,15 @@ interface Props {
 const STATUS_OPTIONS: { value: ScheduleItem["status"]; label: string }[] = [
   { value: "pendente", label: "Pendente" },
   { value: "fazendo", label: "Fazendo" },
-  { value: "feita", label: "Feita" },
+  { value: "feita", label: "Concluído" },
+  { value: "pulado", label: "Pulado" },
 ];
 
 const statusColor: Record<ScheduleItem["status"], string> = {
-  pendente: "bg-muted text-muted-foreground hover:bg-muted",
-  fazendo: "bg-primary/15 text-primary hover:bg-primary/20",
-  feita: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20",
+  pendente: "bg-[hsl(var(--status-pendente-bg))] text-[hsl(var(--status-pendente))] hover:opacity-90",
+  fazendo: "bg-[hsl(var(--status-fazendo-bg))] text-[hsl(var(--status-fazendo))] hover:opacity-90",
+  feita: "bg-[hsl(var(--status-feita-bg))] text-[hsl(var(--status-feita))] hover:opacity-90",
+  pulado: "bg-[hsl(var(--status-pulado-bg))] text-[hsl(var(--status-pulado))] hover:opacity-90",
 };
 
 const DURATIONS: number[] = [5, 10, 15, ...Array.from({ length: 15 }, (_, i) => 30 + i * 15)];
