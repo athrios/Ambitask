@@ -150,12 +150,20 @@ const Index = () => {
                   {meta.subtitle}
                 </p>
               </div>
-              {section !== "settings" && section !== "done" && section !== "today" && (
+              {section === "schedule" && (
                 <Input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   className="w-auto h-9"
+                />
+              )}
+              {section === "tasks" && (
+                <TaskDatePicker
+                  date={date}
+                  onChange={setDate}
+                  userId={user.id}
+                  refreshKey={tasks.length}
                 />
               )}
             </header>
