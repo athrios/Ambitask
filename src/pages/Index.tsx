@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TasksPanel, type Task, type TasksFilter } from "@/components/TasksPanel";
 import { SchedulePanel } from "@/components/SchedulePanel";
 import { TodayPanel } from "@/components/TodayPanel";
 import { TaskDatePicker } from "@/components/TaskDatePicker";
+import { ProcessesPanel } from "@/components/processes/ProcessesPanel";
+import { FormsPanel } from "@/components/forms/FormsPanel";
+import { RequestsPanel } from "@/components/requests/RequestsPanel";
 import {
   LogOut,
   CalendarClock,
@@ -15,6 +17,9 @@ import {
   Sun,
   CheckCircle2,
   Settings,
+  Workflow,
+  FileText,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
