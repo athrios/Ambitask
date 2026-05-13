@@ -644,7 +644,11 @@ const ProcessDetail = ({
           <div>
             <h4 className="text-sm font-semibold mb-2">Etapas</h4>
             <ol className="space-y-1.5">
-              {steps.map((s, i) => (
+              {steps.map((s, i) => {
+                const today = new Date().toISOString().slice(0, 10);
+                const overdue = s.due_date && s.due_date < today && s.status !== "feita";
+                const soon = s.due_date && !overdue && s.due_date <= addDaysISO(today, 3) && s.status !== "feita";
+                return (
                 <li key={s.id} className="flex items-center gap-2 group rounded px-2 py-1 hover:bg-muted/40">
                   <button
                     onClick={() => toggleStep(s)}
@@ -659,6 +663,17 @@ const ProcessDetail = ({
                   <span className={cn("text-sm flex-1", s.status === "feita" && "line-through text-muted-foreground")}>
                     {s.title}
                   </span>
+                  {s.due_date && (
+                    <span className={cn(
+                      "text-[11px] tabular-nums px-1.5 py-0.5 rounded inline-flex items-center gap-1",
+                      overdue ? "bg-destructive/10 text-destructive" :
+                      soon ? "bg-[hsl(var(--prio-alta-bg))] text-[hsl(var(--prio-alta))]" :
+                      "text-muted-foreground",
+                    )}>
+                      {overdue && <AlertCircle className="h-3 w-3" />}
+                      {s.due_date}
+                    </span>
+                  )}
                   <button
                     onClick={() => removeStep(s.id)}
                     className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
@@ -666,7 +681,7 @@ const ProcessDetail = ({
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </li>
-              ))}
+              );})}
             </ol>
             <form
               className="flex gap-2 mt-2"
