@@ -199,19 +199,51 @@ export const TasksPanel = ({
     if (!t) return;
     if (t.length > 200) return toast.error("Título muito longo");
     const targetDate = filter === "today" ? today : date;
-    const { error } = await supabase.from("tasks").insert({
+    const { data, error } = await supabase.from("tasks").insert({
       title: t,
       task_date: targetDate,
       user_id: userId,
       position: tasks.length,
-    });
+    }).select().single();
     if (error) return toast.error(error.message);
     setTitle("");
+    if (data) await logActivity(userId, "task", data.id, "created", `Tarefa criada: "${t}"`);
+    toast.success("Tarefa criada");
     load();
   };
 
+  const generateNextOccurrence = async (t: Task) => {
+    if (!t.is_recurring || !t.recurrence_type) return;
+    const base = t.due_date ?? t.task_date;
+    const nextISO = nextOccurrenceDate(
+      base,
+      t.recurrence_type,
+      t.recurrence_interval ?? 1,
+      t.recurrence_end_date,
+    );
+    if (!nextISO) return;
+    const parentId = t.parent_recurring_task_id ?? t.id;
+    const { data, error } = await supabase.from("tasks").insert({
+      title: t.title,
+      notes: t.notes,
+      priority: t.priority,
+      task_date: nextISO,
+      due_date: t.due_date ? nextISO : null,
+      user_id: userId,
+      position: tasks.length,
+      is_recurring: true,
+      recurrence_type: t.recurrence_type,
+      recurrence_interval: t.recurrence_interval ?? 1,
+      recurrence_end_date: t.recurrence_end_date ?? null,
+      parent_recurring_task_id: parentId,
+    } as never).select().single();
+    if (error) return toast.error("Erro ao gerar recorrência: " + error.message);
+    if (data) await logActivity(userId, "task", data.id, "recurrence_generated", `Próxima ocorrência criada para ${nextISO}`);
+    toast.success(`Próxima ocorrência criada (${nextISO})`);
+  };
+
   const updateTask = async (id: string, patch: Partial<Task>) => {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    const { error } = await supabase.from("tasks").update(patch as never).eq("id", id);
     if (error) return toast.error(error.message);
     // 2-way sync: if status/done changed, mirror to linked schedule_items
     if (patch.status !== undefined || patch.done !== undefined) {
@@ -227,12 +259,29 @@ export const TasksPanel = ({
     load();
   };
 
-  const setStatus = (t: Task, status: TaskStatus) =>
-    updateTask(t.id, { status, done: status === "feita" });
+  const setStatus = async (t: Task, status: TaskStatus) => {
+    const wasFeita = t.status === "feita";
+    await updateTask(t.id, { status, done: status === "feita" });
+    await logActivity(
+      userId,
+      "task",
+      t.id,
+      status === "feita" ? "completed" : "status_changed",
+      `Status: ${t.status ?? "pendente"} → ${status}`,
+    );
+    if (status === "feita" && !wasFeita && t.is_recurring) {
+      await generateNextOccurrence(t);
+      load();
+    }
+  };
 
   const remove = async (id: string) => {
+    if (!confirm("Excluir esta tarefa?")) return;
+    const t = tasks.find((x) => x.id === id);
     const { error } = await supabase.from("tasks").delete().eq("id", id);
     if (error) return toast.error(error.message);
+    await logActivity(userId, "task", id, "deleted", `Tarefa excluída: "${t?.title ?? ""}"`);
+    toast.success("Tarefa excluída");
     load();
   };
 
