@@ -32,16 +32,14 @@ export const logActivity = async (
   description: string,
   metadata: Record<string, unknown> = {},
 ) => {
-  // best-effort; never block UX
   try {
-    // @ts-expect-error new table not yet in generated types
     await supabase.from("activity_logs").insert({
       user_id: userId,
       entity_type: entityType,
       entity_id: entityId,
       action,
       description,
-      metadata,
+      metadata: metadata as never,
     });
   } catch {
     /* ignore */
@@ -52,7 +50,6 @@ export const fetchActivityLogs = async (
   entityType: EntityType,
   entityId: string,
 ): Promise<ActivityLog[]> => {
-  // @ts-expect-error new table not yet in generated types
   const { data } = await supabase
     .from("activity_logs")
     .select("*")

@@ -59,19 +59,19 @@ export const AdvancedFilters = ({
     onChange({ ...value, [key]: next });
   };
 
-  const Section = ({
-    title, options, key,
-  }: {
-    title: string; options: FilterOption[]; key: "status" | "priority" | "source";
-  }) => options.length === 0 ? null : (
+  const renderSection = (
+    title: string,
+    options: FilterOption[],
+    fieldKey: "status" | "priority" | "source",
+  ) => options.length === 0 ? null : (
     <div className="space-y-1.5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
       <div className="grid grid-cols-2 gap-1">
         {options.map((o) => (
           <label key={o.value} className="flex items-center gap-1.5 text-xs cursor-pointer">
             <Checkbox
-              checked={value[key].includes(o.value)}
-              onCheckedChange={() => toggle(key, o.value)}
+              checked={value[fieldKey].includes(o.value)}
+              onCheckedChange={() => toggle(fieldKey, o.value)}
               className="h-3.5 w-3.5"
             />
             {o.label}
@@ -99,9 +99,9 @@ export const AdvancedFilters = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 space-y-3">
-        <Section title="Status" options={statusOptions} key_="status" {...{ key: "status" }} />
-        <Section title="Prioridade" options={priorityOptions} key_="priority" {...{ key: "priority" }} />
-        <Section title="Origem" options={sourceOptions} key_="source" {...{ key: "source" }} />
+        {renderSection("Status", statusOptions, "status")}
+        {renderSection("Prioridade", priorityOptions, "priority")}
+        {renderSection("Origem", sourceOptions, "source")}
         <div className="space-y-1.5">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Prazo</p>
           <div className="grid grid-cols-2 gap-2">

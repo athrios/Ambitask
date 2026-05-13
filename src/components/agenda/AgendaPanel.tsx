@@ -163,7 +163,7 @@ export const AgendaPanel = ({ userId: _userId }: Props) => {
                     <div key={t.id} className="px-4 py-2 flex items-center gap-2 text-sm">
                       <ListChecks className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className={cn("flex-1 truncate", t.done && "line-through text-muted-foreground")}>{t.title}</span>
-                      <PriorityPill value={t.priority ?? "media"} size="xs" />
+                      <PriorityPill value={t.priority ?? "media"} />
                       <StatusPill domain="task" value={t.status ?? "pendente"} size="xs" />
                     </div>
                   ))}
