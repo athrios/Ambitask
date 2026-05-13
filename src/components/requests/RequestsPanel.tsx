@@ -282,20 +282,31 @@ export const RequestsPanel = ({ userId }: Props) => {
 
 const RequestCard = ({
   r, title, onOpen,
-}: { r: Response; title: string; onOpen: () => void }) => (
-  <button
-    onClick={onOpen}
-    className="text-left rounded-xl border bg-card p-4 hover:shadow-sm transition w-full"
-  >
-    <div className="flex items-start justify-between gap-2">
-      <h4 className="text-sm font-semibold truncate">{title}</h4>
-      <StatusPill domain="request" value={r.status} size="xs" />
-    </div>
-    <p className="text-xs text-muted-foreground mt-1 truncate">
-      {r.submitter_name || "Anônimo"}
-    </p>
-    <p className="text-[11px] text-muted-foreground mt-2">
-      {new Date(r.created_at).toLocaleString("pt-BR")}
-    </p>
-  </button>
-);
+}: { r: Response; title: string; onOpen: () => void }) => {
+  const converted = r.converted_task_id || r.converted_process_id;
+  return (
+    <button
+      onClick={onOpen}
+      className="text-left rounded-xl border bg-card p-4 hover:shadow-sm transition w-full"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-semibold truncate">{title}</h4>
+        <StatusPill domain="request" value={r.status} size="xs" />
+      </div>
+      <p className="text-xs text-muted-foreground mt-1 truncate">
+        {r.submitter_name || "Anônimo"}
+      </p>
+      <div className="flex items-center justify-between mt-2 gap-2">
+        <p className="text-[11px] text-muted-foreground">
+          {new Date(r.created_at).toLocaleString("pt-BR")}
+        </p>
+        {converted && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-[hsl(var(--status-feita))]">
+            <CheckCircle2 className="h-3 w-3" />
+            {r.converted_task_id ? "tarefa" : "processo"}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+};
