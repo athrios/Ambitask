@@ -421,13 +421,17 @@ const TemplateManager = ({
   const addTpl = async () => {
     const n = newTplName.trim();
     if (!n) return;
-    await supabase.from("process_templates").insert({ name: n, user_id: userId });
+    const { error } = await supabase.from("process_templates").insert({ name: n, user_id: userId });
+    if (error) return toast.error(error.message);
+    toast.success("Modelo criado");
     setNewTplName("");
     reload();
   };
   const removeTpl = async (id: string) => {
-    if (!confirm("Excluir modelo?")) return;
-    await supabase.from("process_templates").delete().eq("id", id);
+    if (!confirm("Excluir modelo e suas etapas?")) return;
+    const { error } = await supabase.from("process_templates").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Modelo excluído");
     reload();
   };
   const addStep = async (tplId: string) => {
