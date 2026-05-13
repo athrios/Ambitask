@@ -132,12 +132,15 @@ export const ProcessesPanel = ({ userId }: Props) => {
   const updateProcess = async (id: string, patch: Partial<Process>) => {
     const { error } = await supabase.from("processes").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
+    if (patch.status) toast.success("Status atualizado");
     load();
   };
 
   const removeProcess = async (id: string) => {
-    if (!confirm("Excluir processo?")) return;
-    await supabase.from("processes").delete().eq("id", id);
+    if (!confirm("Excluir processo e todas as etapas?")) return;
+    const { error } = await supabase.from("processes").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Processo excluído");
     load();
   };
 
