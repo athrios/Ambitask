@@ -577,26 +577,42 @@ export const TasksPanel = ({
     );
   };
 
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const [recurEditingId, setRecurEditingId] = useState<string | null>(null);
+
   const RowActions = ({ t }: { t: Task }) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
-        <MoreHorizontal className="h-4 w-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onClick={() => startEdit(t)}>
-          <Pencil className="h-3.5 w-3.5 mr-2" /> Editar título
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toggleNotes(`task:${t.id}`)}>
-          <StickyNote className="h-3.5 w-3.5 mr-2" /> Observação
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toggleExpand(t.id)}>
-          <ChevronDown className="h-3.5 w-3.5 mr-2" /> Sub-tarefas
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => remove(t.id)} className="text-destructive">
-          <Trash2 className="h-3.5 w-3.5 mr-2" /> Remover
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-0.5">
+      {t.is_recurring && (
+        <span title="Recorrente" className="text-muted-foreground">
+          <Repeat className="h-3.5 w-3.5" />
+        </span>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
+          <MoreHorizontal className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => startEdit(t)}>
+            <Pencil className="h-3.5 w-3.5 mr-2" /> Editar título
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggleNotes(`task:${t.id}`)}>
+            <StickyNote className="h-3.5 w-3.5 mr-2" /> Observação
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggleExpand(t.id)}>
+            <ChevronDown className="h-3.5 w-3.5 mr-2" /> Sub-tarefas
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setRecurEditingId(t.id)}>
+            <Repeat className="h-3.5 w-3.5 mr-2" /> Recorrência
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setHistoryId(t.id)}>
+            <History className="h-3.5 w-3.5 mr-2" /> Histórico
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => remove(t.id)} className="text-destructive">
+            <Trash2 className="h-3.5 w-3.5 mr-2" /> Remover
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 
   const DueDate = ({ t }: { t: Task }) => (
