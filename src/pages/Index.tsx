@@ -10,6 +10,8 @@ import { TaskDatePicker } from "@/components/TaskDatePicker";
 import { ProcessesPanel } from "@/components/processes/ProcessesPanel";
 import { FormsPanel } from "@/components/forms/FormsPanel";
 import { RequestsPanel } from "@/components/requests/RequestsPanel";
+import { AgendaPanel } from "@/components/agenda/AgendaPanel";
+import { GlobalSearch } from "@/components/shared/GlobalSearch";
 import {
   LogOut,
   CalendarClock,
@@ -20,6 +22,8 @@ import {
   Workflow,
   FileText,
   Inbox,
+  CalendarRange,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +31,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 type Section =
   | "today"
+  | "agenda"
   | "schedule"
   | "tasks"
   | "processes"
@@ -40,6 +45,7 @@ const SECTION_META: Record<
   { label: string; icon: typeof Sun; subtitle: string }
 > = {
   today: { label: "Hoje", icon: Sun, subtitle: "O que precisa acontecer hoje." },
+  agenda: { label: "Agenda", icon: CalendarRange, subtitle: "Visão de tarefas e processos por dia, semana e mês." },
   schedule: { label: "Cronograma", icon: CalendarClock, subtitle: "Sua agenda do dia, bloco a bloco." },
   tasks: { label: "Tarefas", icon: ListChecks, subtitle: "Tudo que você está cuidando." },
   processes: { label: "Processos", icon: Workflow, subtitle: "Processos recorrentes em execução." },
@@ -55,6 +61,7 @@ const Index = () => {
   const [date, setDate] = useState(today());
   const [tasks, setTasks] = useState<Task[]>([]);
   const [section, setSection] = useState<Section>("today");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) nav("/auth", { replace: true });
@@ -62,6 +69,18 @@ const Index = () => {
 
   useEffect(() => {
     document.title = "Plano do dia · Tarefas e cronograma";
+  }, []);
+
+  // Cmd/Ctrl+K opens global search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   // Always preload today's tasks for the schedule import picker
@@ -81,6 +100,7 @@ const Index = () => {
   const Icon = meta.icon;
   const order: Section[] = [
     "today",
+    "agenda",
     "schedule",
     "tasks",
     "processes",
@@ -106,6 +126,18 @@ const Index = () => {
               {user.email}
             </p>
           </div>
+
+          <div className="px-2 pt-2">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-sidebar-foreground/70 border border-sidebar-border hover:bg-sidebar-accent/60"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span className="flex-1 text-left">Buscar...</span>
+              <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-sidebar-accent/60 border border-sidebar-border">⌘K</kbd>
+            </button>
+          </div>
+
           <nav className="flex-1 p-2 space-y-0.5">
             {order.map((id) => {
               const m = SECTION_META[id];
@@ -176,6 +208,7 @@ const Index = () => {
             {section === "today" && (
               <TodayPanel date={today()} userId={user.id} />
             )}
+            {section === "agenda" && <AgendaPanel userId={user.id} />}
             {section === "schedule" && (
               <SchedulePanel date={date} userId={user.id} tasks={tasks} />
             )}
@@ -198,6 +231,12 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      <GlobalSearch
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        onNavigate={(s) => setSection(s)}
+      />
     </main>
   );
 };
