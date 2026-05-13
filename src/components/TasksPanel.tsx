@@ -522,6 +522,20 @@ export const TasksPanel = ({
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
+                        onClick={() => moveSub(s, -1)}
+                        className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover/sub:opacity-100"
+                        title="Mover acima"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => moveSub(s, 1)}
+                        className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover/sub:opacity-100"
+                        title="Mover abaixo"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </button>
+                      <button
                         onClick={() => removeSub(s)}
                         className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/sub:opacity-100"
                       >
