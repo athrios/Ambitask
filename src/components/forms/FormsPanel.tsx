@@ -110,6 +110,8 @@ export const FormsPanel = ({ userId }: Props) => {
     const next = !f.is_published;
     const { error } = await supabase.from("forms").update({ is_published: next }).eq("id", f.id);
     if (error) return toast.error(error.message);
+    await logActivity(userId, "form", f.id, next ? "published" : "unpublished",
+      next ? `Formulário publicado: "${f.title}"` : `Formulário despublicado: "${f.title}"`);
     toast.success(next ? "Formulário publicado" : "Formulário despublicado");
     load();
   };
