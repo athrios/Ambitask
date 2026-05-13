@@ -22,6 +22,7 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { REQUEST_STATUS, type RequestStatus } from "@/lib/taskTokens";
+import { logActivity } from "@/lib/activityLog";
 
 interface FormRow { id: string; title: string }
 interface Response {
@@ -74,8 +75,10 @@ export const RequestsPanel = ({ userId }: Props) => {
     const { data, error } = await supabase.from("tasks").insert({
       user_id: userId, title, notes,
       task_date: new Date().toISOString().slice(0, 10),
-    }).select().single();
+      source_type: "request", source_id: r.id,
+    } as never).select().single();
     if (error) return toast.error(error.message);
+    await logActivity(userId, "request", r.id, "converted", `Convertida em tarefa: "${title}"`);
     await supabase.from("form_responses").update({
       status: "convertida_tarefa", converted_task_id: data!.id,
     }).eq("id", r.id);
@@ -94,6 +97,7 @@ export const RequestsPanel = ({ userId }: Props) => {
       user_id: userId, name, client_name: r.submitter_name, notes, status: "nao_iniciado",
     }).select().single();
     if (error) return toast.error(error.message);
+    await logActivity(userId, "request", r.id, "converted", `Convertida em processo: "${name}"`);
     await supabase.from("form_responses").update({
       status: "convertida_processo", converted_process_id: data!.id,
     }).eq("id", r.id);

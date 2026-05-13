@@ -22,6 +22,7 @@ import {
 import { Plus, Trash2, Link as LinkIcon, FileText, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { logActivity } from "@/lib/activityLog";
 
 type FieldType = "short_text" | "long_text" | "select" | "multi_select" | "date";
 
@@ -110,6 +111,8 @@ export const FormsPanel = ({ userId }: Props) => {
     const next = !f.is_published;
     const { error } = await supabase.from("forms").update({ is_published: next }).eq("id", f.id);
     if (error) return toast.error(error.message);
+    await logActivity(userId, "form", f.id, next ? "published" : "unpublished",
+      next ? `Formulário publicado: "${f.title}"` : `Formulário despublicado: "${f.title}"`);
     toast.success(next ? "Formulário publicado" : "Formulário despublicado");
     load();
   };

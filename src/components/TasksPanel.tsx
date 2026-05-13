@@ -60,7 +60,22 @@ import {
 import { StatusPill as SharedStatusPill } from "@/components/shared/StatusPill";
 import { PriorityPill as SharedPriorityPill } from "@/components/shared/PriorityPill";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { ListChecks } from "lucide-react";
+import { ListChecks, Repeat, ArrowUp, ArrowDown, History } from "lucide-react";
+import { logActivity } from "@/lib/activityLog";
+import { nextOccurrenceDate, RECURRENCE_OPTIONS, type RecurrenceType } from "@/lib/recurrence";
+import { ActivityLogList } from "@/components/shared/ActivityLogList";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export interface Task {
   id: string;
@@ -72,6 +87,13 @@ export interface Task {
   due_date: string | null;
   notes: string;
   position: number;
+  is_recurring?: boolean;
+  recurrence_type?: RecurrenceType | null;
+  recurrence_interval?: number;
+  recurrence_end_date?: string | null;
+  parent_recurring_task_id?: string | null;
+  source_type?: "manual" | "request" | "process";
+  source_id?: string | null;
 }
 
 interface Subtask {
@@ -177,19 +199,51 @@ export const TasksPanel = ({
     if (!t) return;
     if (t.length > 200) return toast.error("Título muito longo");
     const targetDate = filter === "today" ? today : date;
-    const { error } = await supabase.from("tasks").insert({
+    const { data, error } = await supabase.from("tasks").insert({
       title: t,
       task_date: targetDate,
       user_id: userId,
       position: tasks.length,
-    });
+    }).select().single();
     if (error) return toast.error(error.message);
     setTitle("");
+    if (data) await logActivity(userId, "task", data.id, "created", `Tarefa criada: "${t}"`);
+    toast.success("Tarefa criada");
     load();
   };
 
+  const generateNextOccurrence = async (t: Task) => {
+    if (!t.is_recurring || !t.recurrence_type) return;
+    const base = t.due_date ?? t.task_date;
+    const nextISO = nextOccurrenceDate(
+      base,
+      t.recurrence_type,
+      t.recurrence_interval ?? 1,
+      t.recurrence_end_date,
+    );
+    if (!nextISO) return;
+    const parentId = t.parent_recurring_task_id ?? t.id;
+    const { data, error } = await supabase.from("tasks").insert({
+      title: t.title,
+      notes: t.notes,
+      priority: t.priority,
+      task_date: nextISO,
+      due_date: t.due_date ? nextISO : null,
+      user_id: userId,
+      position: tasks.length,
+      is_recurring: true,
+      recurrence_type: t.recurrence_type,
+      recurrence_interval: t.recurrence_interval ?? 1,
+      recurrence_end_date: t.recurrence_end_date ?? null,
+      parent_recurring_task_id: parentId,
+    } as never).select().single();
+    if (error) return toast.error("Erro ao gerar recorrência: " + error.message);
+    if (data) await logActivity(userId, "task", data.id, "recurrence_generated", `Próxima ocorrência criada para ${nextISO}`);
+    toast.success(`Próxima ocorrência criada (${nextISO})`);
+  };
+
   const updateTask = async (id: string, patch: Partial<Task>) => {
-    const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+    const { error } = await supabase.from("tasks").update(patch as never).eq("id", id);
     if (error) return toast.error(error.message);
     // 2-way sync: if status/done changed, mirror to linked schedule_items
     if (patch.status !== undefined || patch.done !== undefined) {
@@ -205,12 +259,29 @@ export const TasksPanel = ({
     load();
   };
 
-  const setStatus = (t: Task, status: TaskStatus) =>
-    updateTask(t.id, { status, done: status === "feita" });
+  const setStatus = async (t: Task, status: TaskStatus) => {
+    const wasFeita = t.status === "feita";
+    await updateTask(t.id, { status, done: status === "feita" });
+    await logActivity(
+      userId,
+      "task",
+      t.id,
+      status === "feita" ? "completed" : "status_changed",
+      `Status: ${t.status ?? "pendente"} → ${status}`,
+    );
+    if (status === "feita" && !wasFeita && t.is_recurring) {
+      await generateNextOccurrence(t);
+      load();
+    }
+  };
 
   const remove = async (id: string) => {
+    if (!confirm("Excluir esta tarefa?")) return;
+    const t = tasks.find((x) => x.id === id);
     const { error } = await supabase.from("tasks").delete().eq("id", id);
     if (error) return toast.error(error.message);
+    await logActivity(userId, "task", id, "deleted", `Tarefa excluída: "${t?.title ?? ""}"`);
+    toast.success("Tarefa excluída");
     load();
   };
 
@@ -278,6 +349,19 @@ export const TasksPanel = ({
   const removeSub = async (s: Subtask) => {
     await supabase.from("subtasks").delete().eq("id", s.id);
     await maybeAutoComplete(s.task_id);
+    load();
+  };
+
+  const moveSub = async (s: Subtask, direction: -1 | 1) => {
+    const list = (subtasks[s.task_id] ?? []).slice().sort((a, b) => a.position - b.position);
+    const idx = list.findIndex((x) => x.id === s.id);
+    const swapIdx = idx + direction;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= list.length) return;
+    const a = list[idx], b = list[swapIdx];
+    await Promise.all([
+      supabase.from("subtasks").update({ position: b.position }).eq("id", a.id),
+      supabase.from("subtasks").update({ position: a.position }).eq("id", b.id),
+    ]);
     load();
   };
 
@@ -438,6 +522,20 @@ export const TasksPanel = ({
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
+                        onClick={() => moveSub(s, -1)}
+                        className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover/sub:opacity-100"
+                        title="Mover acima"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => moveSub(s, 1)}
+                        className="p-1 text-muted-foreground hover:text-foreground opacity-0 group-hover/sub:opacity-100"
+                        title="Mover abaixo"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </button>
+                      <button
                         onClick={() => removeSub(s)}
                         className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover/sub:opacity-100"
                       >
@@ -479,26 +577,42 @@ export const TasksPanel = ({
     );
   };
 
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const [recurEditingId, setRecurEditingId] = useState<string | null>(null);
+
   const RowActions = ({ t }: { t: Task }) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
-        <MoreHorizontal className="h-4 w-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuItem onClick={() => startEdit(t)}>
-          <Pencil className="h-3.5 w-3.5 mr-2" /> Editar título
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toggleNotes(`task:${t.id}`)}>
-          <StickyNote className="h-3.5 w-3.5 mr-2" /> Observação
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toggleExpand(t.id)}>
-          <ChevronDown className="h-3.5 w-3.5 mr-2" /> Sub-tarefas
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => remove(t.id)} className="text-destructive">
-          <Trash2 className="h-3.5 w-3.5 mr-2" /> Remover
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div className="flex items-center gap-0.5">
+      {t.is_recurring && (
+        <span title="Recorrente" className="text-muted-foreground">
+          <Repeat className="h-3.5 w-3.5" />
+        </span>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger className="p-1 text-muted-foreground hover:text-foreground rounded">
+          <MoreHorizontal className="h-4 w-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => startEdit(t)}>
+            <Pencil className="h-3.5 w-3.5 mr-2" /> Editar título
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggleNotes(`task:${t.id}`)}>
+            <StickyNote className="h-3.5 w-3.5 mr-2" /> Observação
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggleExpand(t.id)}>
+            <ChevronDown className="h-3.5 w-3.5 mr-2" /> Sub-tarefas
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setRecurEditingId(t.id)}>
+            <Repeat className="h-3.5 w-3.5 mr-2" /> Recorrência
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setHistoryId(t.id)}>
+            <History className="h-3.5 w-3.5 mr-2" /> Histórico
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => remove(t.id)} className="text-destructive">
+            <Trash2 className="h-3.5 w-3.5 mr-2" /> Remover
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 
   const DueDate = ({ t }: { t: Task }) => (
@@ -811,6 +925,81 @@ export const TasksPanel = ({
               })}
             </div>
           </div>
+        )}
+        {/* Recurrence editor */}
+        {recurEditingId && (() => {
+          const t = tasks.find((x) => x.id === recurEditingId);
+          if (!t) return null;
+          return (
+            <Dialog open onOpenChange={(o) => !o && setRecurEditingId(null)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Recorrência da tarefa</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Switch
+                      checked={!!t.is_recurring}
+                      onCheckedChange={(v) => updateTask(t.id, {
+                        is_recurring: v,
+                        recurrence_type: v ? (t.recurrence_type ?? "weekly") : null,
+                      } as Partial<Task>)}
+                    />
+                    Repetir esta tarefa
+                  </label>
+                  {t.is_recurring && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium">Frequência</label>
+                        <Select
+                          value={t.recurrence_type ?? "weekly"}
+                          onValueChange={(v) => updateTask(t.id, { recurrence_type: v as RecurrenceType } as Partial<Task>)}
+                        >
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {RECURRENCE_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">Intervalo (a cada quantos)</label>
+                        <Input
+                          type="number" min={1}
+                          value={t.recurrence_interval ?? 1}
+                          onChange={(e) => updateTask(t.id, { recurrence_interval: Math.max(1, Number(e.target.value) || 1) } as Partial<Task>)}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium">Termina em (opcional)</label>
+                        <Input
+                          type="date"
+                          value={t.recurrence_end_date ?? ""}
+                          onChange={(e) => updateTask(t.id, { recurrence_end_date: e.target.value || null } as Partial<Task>)}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        A próxima ocorrência será criada automaticamente quando esta tarefa for marcada como concluída.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
+
+        {/* History dialog */}
+        {historyId && (
+          <Dialog open onOpenChange={(o) => !o && setHistoryId(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Histórico da tarefa</DialogTitle>
+              </DialogHeader>
+              <ActivityLogList entityType="task" entityId={historyId} />
+            </DialogContent>
+          </Dialog>
         )}
       </section>
     </TooltipProvider>

@@ -18,13 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check } from "lucide-react";
+import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, History, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PROCESS_STATUS, type ProcessStatus } from "@/lib/taskTokens";
+import { logActivity } from "@/lib/activityLog";
+import { ActivityLogList } from "@/components/shared/ActivityLogList";
+import { addDaysISO } from "@/lib/recurrence";
 
 interface Template {
   id: string;
@@ -37,6 +40,7 @@ interface TmplStep {
   template_id: string;
   position: number;
   title: string;
+  due_offset_days?: number;
 }
 interface Process {
   id: string;
@@ -46,6 +50,7 @@ interface Process {
   status: ProcessStatus;
   due_date: string | null;
   notes: string;
+  created_at?: string;
 }
 interface Step {
   id: string;
@@ -54,6 +59,7 @@ interface Step {
   title: string;
   status: "pendente" | "fazendo" | "feita" | "pulado";
   notes: string;
+  due_date?: string | null;
 }
 
 interface Props {
@@ -96,7 +102,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const createProcess = async (templateId: string | null, name: string) => {
+  const createProcess = async (templateId: string | null, name: string, dueDate: string | null) => {
     const tpl = templates.find((t) => t.id === templateId);
     const { data: proc, error } = await supabase
       .from("processes")
@@ -105,6 +111,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
         name,
         template_id: templateId,
         status: "nao_iniciado",
+        due_date: dueDate,
       })
       .select()
       .single();
@@ -116,30 +123,42 @@ export const ProcessesPanel = ({ userId }: Props) => {
         .select("*")
         .eq("template_id", templateId)
         .order("position", { ascending: true });
-      const rows = (tmplSteps ?? []).map((s, i) => ({
-        process_id: proc.id,
-        user_id: userId,
-        position: i,
-        title: s.title,
-        status: "pendente" as const,
-      }));
-      if (rows.length) await supabase.from("process_steps").insert(rows);
+      const baseISO = (dueDate ?? proc.created_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+      const rows = (tmplSteps ?? []).map((s, i) => {
+        const offset = (s as { due_offset_days?: number }).due_offset_days ?? 0;
+        return {
+          process_id: proc.id,
+          user_id: userId,
+          position: i,
+          title: s.title,
+          status: "pendente" as const,
+          due_date: offset > 0 ? addDaysISO(baseISO, offset) : null,
+        };
+      });
+      if (rows.length) await supabase.from("process_steps").insert(rows as never);
     }
+    await logActivity(userId, "process", proc.id, "created", `Processo criado: "${name}"`);
     toast.success(tpl ? `Processo criado a partir de ${tpl.name}` : "Processo criado");
     load();
   };
 
   const updateProcess = async (id: string, patch: Partial<Process>) => {
+    const proc = processes.find((p) => p.id === id);
     const { error } = await supabase.from("processes").update(patch).eq("id", id);
     if (error) return toast.error(error.message);
-    if (patch.status) toast.success("Status atualizado");
+    if (patch.status && proc) {
+      await logActivity(userId, "process", id, "status_changed", `Status: ${proc.status} → ${patch.status}`);
+      toast.success("Status atualizado");
+    }
     load();
   };
 
   const removeProcess = async (id: string) => {
     if (!confirm("Excluir processo e todas as etapas?")) return;
+    const proc = processes.find((p) => p.id === id);
     const { error } = await supabase.from("processes").delete().eq("id", id);
     if (error) return toast.error(error.message);
+    await logActivity(userId, "process", id, "deleted", `Processo excluído: "${proc?.name ?? ""}"`);
     toast.success("Processo excluído");
     load();
   };
@@ -337,11 +356,12 @@ const NewProcessButton = ({
   onCreate,
 }: {
   templates: Template[];
-  onCreate: (templateId: string | null, name: string) => void;
+  onCreate: (templateId: string | null, name: string, dueDate: string | null) => void;
 }) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [tpl, setTpl] = useState<string>("none");
+  const [due, setDue] = useState<string>("");
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -370,14 +390,21 @@ const NewProcessButton = ({
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <label className="text-xs font-medium">Data inicial / prazo (opcional)</label>
+            <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Usada para calcular automaticamente os prazos das etapas do modelo.
+            </p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
           <Button
             onClick={() => {
               if (!name.trim()) return toast.error("Nome obrigatório");
-              onCreate(tpl === "none" ? null : tpl, name.trim());
-              setOpen(false); setName(""); setTpl("none");
+              onCreate(tpl === "none" ? null : tpl, name.trim(), due || null);
+              setOpen(false); setName(""); setTpl("none"); setDue("");
             }}
           >Criar</Button>
         </DialogFooter>
@@ -487,7 +514,21 @@ const TemplateManager = ({
                     {steps.map((s, i) => (
                       <li key={s.id} className="flex items-center gap-2 group">
                         <span className="text-xs text-muted-foreground w-5">{i + 1}.</span>
-                        <span className="flex-1">{s.title}</span>
+                        <span className="flex-1 truncate">{s.title}</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          defaultValue={s.due_offset_days ?? 0}
+                          onBlur={async (e) => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            await supabase.from("process_template_steps")
+                              .update({ due_offset_days: v } as never).eq("id", s.id);
+                            loadSteps();
+                          }}
+                          className="h-7 w-20 text-xs"
+                          title="Prazo em dias após o início do processo"
+                        />
+                        <span className="text-[11px] text-muted-foreground">dias</span>
                         <button
                           onClick={() => removeStep(s.id)}
                           className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
@@ -603,7 +644,11 @@ const ProcessDetail = ({
           <div>
             <h4 className="text-sm font-semibold mb-2">Etapas</h4>
             <ol className="space-y-1.5">
-              {steps.map((s, i) => (
+              {steps.map((s, i) => {
+                const today = new Date().toISOString().slice(0, 10);
+                const overdue = s.due_date && s.due_date < today && s.status !== "feita";
+                const soon = s.due_date && !overdue && s.due_date <= addDaysISO(today, 3) && s.status !== "feita";
+                return (
                 <li key={s.id} className="flex items-center gap-2 group rounded px-2 py-1 hover:bg-muted/40">
                   <button
                     onClick={() => toggleStep(s)}
@@ -618,6 +663,17 @@ const ProcessDetail = ({
                   <span className={cn("text-sm flex-1", s.status === "feita" && "line-through text-muted-foreground")}>
                     {s.title}
                   </span>
+                  {s.due_date && (
+                    <span className={cn(
+                      "text-[11px] tabular-nums px-1.5 py-0.5 rounded inline-flex items-center gap-1",
+                      overdue ? "bg-destructive/10 text-destructive" :
+                      soon ? "bg-[hsl(var(--prio-alta-bg))] text-[hsl(var(--prio-alta))]" :
+                      "text-muted-foreground",
+                    )}>
+                      {overdue && <AlertCircle className="h-3 w-3" />}
+                      {s.due_date}
+                    </span>
+                  )}
                   <button
                     onClick={() => removeStep(s.id)}
                     className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
@@ -625,7 +681,7 @@ const ProcessDetail = ({
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </li>
-              ))}
+              );})}
             </ol>
             <form
               className="flex gap-2 mt-2"
