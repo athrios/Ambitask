@@ -187,6 +187,9 @@ const Index = () => {
                 onTasksChange={setTasks}
               />
             )}
+            {section === "processes" && <ProcessesPanel userId={user.id} />}
+            {section === "forms" && <FormsPanel userId={user.id} />}
+            {section === "requests" && <RequestsPanel userId={user.id} />}
             {section === "settings" && (
               <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
                 Configurações em breve.
