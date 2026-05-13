@@ -79,7 +79,16 @@ const Index = () => {
 
   const meta = SECTION_META[section];
   const Icon = meta.icon;
-  const order: Section[] = ["today", "schedule", "tasks", "done", "settings"];
+  const order: Section[] = [
+    "today",
+    "schedule",
+    "tasks",
+    "processes",
+    "forms",
+    "requests",
+    "done",
+    "settings",
+  ];
 
   const tasksFilter: TasksFilter =
     section === "today" ? "today" : section === "done" ? "done" : "all";
