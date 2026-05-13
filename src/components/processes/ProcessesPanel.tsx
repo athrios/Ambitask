@@ -514,7 +514,21 @@ const TemplateManager = ({
                     {steps.map((s, i) => (
                       <li key={s.id} className="flex items-center gap-2 group">
                         <span className="text-xs text-muted-foreground w-5">{i + 1}.</span>
-                        <span className="flex-1">{s.title}</span>
+                        <span className="flex-1 truncate">{s.title}</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          defaultValue={s.due_offset_days ?? 0}
+                          onBlur={async (e) => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            await supabase.from("process_template_steps")
+                              .update({ due_offset_days: v } as never).eq("id", s.id);
+                            loadSteps();
+                          }}
+                          className="h-7 w-20 text-xs"
+                          title="Prazo em dias após o início do processo"
+                        />
+                        <span className="text-[11px] text-muted-foreground">dias</span>
                         <button
                           onClick={() => removeStep(s.id)}
                           className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
