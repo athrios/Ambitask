@@ -636,11 +636,17 @@ export const TasksPanel = ({
         </form>
 
         {filtered.length === 0 && (
-          <div className="rounded-lg border border-dashed bg-card/50 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {tasks.length === 0 ? "Nenhuma tarefa ainda." : "Nada combina com o filtro."}
-            </p>
-          </div>
+          tasks.length === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              title="Nenhuma tarefa ainda"
+              description="Use o campo acima para adicionar uma nova tarefa."
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed bg-card/50 py-10 text-center">
+              <p className="text-sm text-muted-foreground">Nada combina com o filtro.</p>
+            </div>
+          )
         )}
 
         {/* List view */}
