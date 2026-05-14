@@ -887,8 +887,8 @@ const ProcessDetail = ({
 };
 
 const ResolvedStepRow = ({
-  s, index, onReopen, onRemove,
-}: { s: Step; index: number; onReopen: () => void; onRemove: () => void }) => {
+  s, index, onRemove,
+}: { s: Step; index: number; onRemove: () => void }) => {
   const isDismissed = s.status === "pulado";
   return (
     <div
@@ -920,13 +920,6 @@ const ResolvedStepRow = ({
         )}
       </div>
       <StatusPill domain="process_step" value={s.status} size="xs" />
-      <button
-        onClick={onReopen}
-        className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
-        title="Reabrir etapa"
-      >
-        <RotateCcw className="h-3.5 w-3.5" />
-      </button>
       <button
         onClick={onRemove}
         className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
