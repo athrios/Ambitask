@@ -332,12 +332,10 @@ const KanbanView = ({
   processes,
   stepsByProc,
   onOpen,
-  onStatus,
 }: {
   processes: Process[];
   stepsByProc: Record<string, Step[]>;
   onOpen: (p: Process) => void;
-  onStatus: (p: Process, s: ProcessStatus) => void;
 }) => (
   <div className="overflow-x-auto -mx-2 pb-2">
     <div className="flex gap-3 px-2 min-w-max">
@@ -356,7 +354,6 @@ const KanbanView = ({
                   p={p}
                   steps={stepsByProc[p.id] ?? []}
                   onOpen={() => onOpen(p)}
-                  onStatus={(s) => onStatus(p, s)}
                 />
               ))}
             </div>
