@@ -202,14 +202,12 @@ export const ProcessesPanel = ({ userId }: Props) => {
           processes={processes}
           stepsByProc={stepsByProc}
           onOpen={setOpenProc}
-          onStatus={(p, s) => updateProcess(p.id, { status: s })}
         />
       ) : view === "list" ? (
         <ListView
           processes={processes}
           stepsByProc={stepsByProc}
           onOpen={setOpenProc}
-          onStatus={(p, s) => updateProcess(p.id, { status: s })}
           onRemove={removeProcess}
         />
       ) : (
@@ -220,7 +218,6 @@ export const ProcessesPanel = ({ userId }: Props) => {
               p={p}
               steps={stepsByProc[p.id] ?? []}
               onOpen={() => setOpenProc(p)}
-              onStatus={(s) => updateProcess(p.id, { status: s })}
             />
           ))}
         </div>
