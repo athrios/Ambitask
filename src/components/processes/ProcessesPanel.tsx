@@ -673,30 +673,32 @@ const ProcessDetail = ({
   };
 
   const completeStep = async (s: Step) => {
-    await supabase.from("process_steps").update({
-      status: "feita", completed_at: new Date().toISOString(),
+    const notesValue = obsDraft[s.id] ?? s.notes ?? "";
+    const completedAt = new Date().toISOString();
+    const { error } = await supabase.from("process_steps").update({
+      status: "feita", completed_at: completedAt, notes: notesValue,
     }).eq("id", s.id);
-    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "feita" as const } : x));
+    if (error) return toast.error(error.message);
+    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "feita" as const, completed_at: completedAt, notes: notesValue } : x));
     after = await advanceNext(after);
+    const ok = await persistProcessStatus(after);
+    if (!ok) return;
     toast.success("Etapa concluída");
-    await recompute(after);
+    onChanged();
   };
 
   const dismissStep = async (s: Step) => {
-    await supabase.from("process_steps").update({
-      status: "pulado", dismissed_at: new Date().toISOString(),
+    const notesValue = obsDraft[s.id] ?? s.notes ?? "";
+    const dismissedAt = new Date().toISOString();
+    const { error } = await supabase.from("process_steps").update({
+      status: "pulado", dismissed_at: dismissedAt, notes: notesValue,
     }).eq("id", s.id);
-    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "pulado" as const } : x));
+    if (error) return toast.error(error.message);
+    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "pulado" as const, dismissed_at: dismissedAt, notes: notesValue } : x));
     after = await advanceNext(after);
+    const ok = await persistProcessStatus(after);
+    if (!ok) return;
     toast.success("Etapa dispensada");
-    await recompute(after);
-  };
-
-  const reopenStep = async (s: Step) => {
-    await supabase.from("process_steps").update({
-      status: "fazendo", completed_at: null, dismissed_at: null, started_at: new Date().toISOString(),
-    }).eq("id", s.id);
-    toast.success("Etapa reaberta");
     onChanged();
   };
 
