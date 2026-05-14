@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Play, SkipForward, RotateCcw, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Play, SkipForward, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/shared/StatusPill";
@@ -26,7 +26,6 @@ import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PROCESS_STATUS, type ProcessStatus } from "@/lib/taskTokens";
 import { logActivity } from "@/lib/activityLog";
-import { ActivityLogList } from "@/components/shared/ActivityLogList";
 import { addDaysISO } from "@/lib/recurrence";
 
 interface Template {
@@ -60,6 +59,9 @@ interface Step {
   status: "pendente" | "fazendo" | "feita" | "pulado";
   notes: string;
   due_date?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  dismissed_at?: string | null;
 }
 
 interface Props {
@@ -82,19 +84,34 @@ export const ProcessesPanel = ({ userId }: Props) => {
     if (p.error) return toast.error(p.error.message);
     setTemplates((t.data ?? []) as Template[]);
     const procs = (p.data ?? []) as Process[];
-    setProcesses(procs);
+    let grouped: Record<string, Step[]> = {};
     if (procs.length) {
       const { data: s } = await supabase
         .from("process_steps")
         .select("*")
         .in("process_id", procs.map((x) => x.id))
         .order("position", { ascending: true });
-      const grouped: Record<string, Step[]> = {};
       (s ?? []).forEach((row) => {
         (grouped[row.process_id] ||= []).push(row as unknown as Step);
       });
       setStepsByProc(grouped);
     } else setStepsByProc({});
+
+    const normalized = procs.map((proc) => ({
+      ...proc,
+      status: computeProcessStatus(proc.status, grouped[proc.id] ?? []),
+    }));
+    setProcesses(normalized);
+    if (openProc) {
+      const updatedOpen = normalized.find((proc) => proc.id === openProc.id);
+      if (updatedOpen) setOpenProc(updatedOpen);
+    }
+
+    await Promise.all(
+      normalized
+        .filter((proc, index) => proc.status !== procs[index].status)
+        .map((proc) => supabase.from("processes").update({ status: proc.status }).eq("id", proc.id)),
+    );
   };
 
   useEffect(() => {
@@ -118,11 +135,12 @@ export const ProcessesPanel = ({ userId }: Props) => {
     if (error || !proc) return toast.error(error?.message ?? "Erro");
 
     if (templateId) {
-      const { data: tmplSteps } = await supabase
+      const { data: tmplSteps, error: stepsError } = await supabase
         .from("process_template_steps")
         .select("*")
         .eq("template_id", templateId)
         .order("position", { ascending: true });
+      if (stepsError) return toast.error(stepsError.message);
       const baseISO = (dueDate ?? proc.created_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
       const rows = (tmplSteps ?? []).map((s, i) => {
         const offset = (s as { due_offset_days?: number }).due_offset_days ?? 0;
@@ -135,21 +153,13 @@ export const ProcessesPanel = ({ userId }: Props) => {
           due_date: offset > 0 ? addDaysISO(baseISO, offset) : null,
         };
       });
-      if (rows.length) await supabase.from("process_steps").insert(rows as never);
+      if (rows.length) {
+        const { error: insertStepsError } = await supabase.from("process_steps").insert(rows as never);
+        if (insertStepsError) return toast.error(insertStepsError.message);
+      }
     }
     await logActivity(userId, "process", proc.id, "created", `Processo criado: "${name}"`);
     toast.success(tpl ? `Processo criado a partir de ${tpl.name}` : "Processo criado");
-    load();
-  };
-
-  const updateProcess = async (id: string, patch: Partial<Process>) => {
-    const proc = processes.find((p) => p.id === id);
-    const { error } = await supabase.from("processes").update(patch).eq("id", id);
-    if (error) return toast.error(error.message);
-    if (patch.status && proc) {
-      await logActivity(userId, "process", id, "status_changed", `Status: ${proc.status} → ${patch.status}`);
-      toast.success("Status atualizado");
-    }
     load();
   };
 
@@ -184,14 +194,12 @@ export const ProcessesPanel = ({ userId }: Props) => {
           processes={processes}
           stepsByProc={stepsByProc}
           onOpen={setOpenProc}
-          onStatus={(p, s) => updateProcess(p.id, { status: s })}
         />
       ) : view === "list" ? (
         <ListView
           processes={processes}
           stepsByProc={stepsByProc}
           onOpen={setOpenProc}
-          onStatus={(p, s) => updateProcess(p.id, { status: s })}
           onRemove={removeProcess}
         />
       ) : (
@@ -202,7 +210,6 @@ export const ProcessesPanel = ({ userId }: Props) => {
               p={p}
               steps={stepsByProc[p.id] ?? []}
               onOpen={() => setOpenProc(p)}
-              onStatus={(s) => updateProcess(p.id, { status: s })}
             />
           ))}
         </div>
@@ -229,17 +236,15 @@ const ProcessCard = ({
   p,
   steps,
   onOpen,
-  onStatus,
 }: {
   p: Process;
   steps: Step[];
   onOpen: () => void;
-  onStatus: (s: ProcessStatus) => void;
 }) => {
-  const done = steps.filter((s) => s.status === "feita").length;
+  const done = steps.filter((s) => s.status === "feita" || s.status === "pulado").length;
   const total = steps.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
-  const current = steps.find((s) => s.status !== "feita" && s.status !== "pulado");
+  const current = steps.find((s) => s.status === "fazendo") ?? steps.find((s) => s.status === "pendente");
   return (
     <div className="rounded-xl border bg-card p-4 hover:shadow-sm transition group">
       <div className="flex items-start justify-between gap-2">
@@ -249,7 +254,7 @@ const ProcessCard = ({
             <p className="text-xs text-muted-foreground truncate">{p.client_name}</p>
           )}
         </button>
-        <StatusPill domain="process" value={p.status} onChange={(v) => onStatus(v as ProcessStatus)} size="xs" />
+        <StatusPill domain="process" value={p.status} size="xs" />
       </div>
       <div className="mt-3 space-y-2">
         <div className="flex items-center gap-2">
@@ -263,9 +268,13 @@ const ProcessCard = ({
         {current && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <ChevronRight className="h-3 w-3" />
+            <span className="shrink-0">Etapa atual:</span>
             <span className="truncate">{current.title}</span>
           </div>
         )}
+        <Button size="sm" variant="outline" className="h-8 w-full mt-2" onClick={onOpen}>
+          Abrir detalhes
+        </Button>
         {p.due_date && (
           <p className="text-[11px] text-muted-foreground">Prazo: {p.due_date}</p>
         )}
@@ -278,28 +287,27 @@ const ListView = ({
   processes,
   stepsByProc,
   onOpen,
-  onStatus,
   onRemove,
 }: {
   processes: Process[];
   stepsByProc: Record<string, Step[]>;
   onOpen: (p: Process) => void;
-  onStatus: (p: Process, s: ProcessStatus) => void;
   onRemove: (id: string) => void;
 }) => (
   <div className="rounded-xl border bg-card divide-y">
     {processes.map((p) => {
       const steps = stepsByProc[p.id] ?? [];
-      const done = steps.filter((s) => s.status === "feita").length;
+      const done = steps.filter((s) => s.status === "feita" || s.status === "pulado").length;
+      const current = steps.find((s) => s.status === "fazendo") ?? steps.find((s) => s.status === "pendente");
       return (
         <div key={p.id} className="px-4 py-3 flex items-center gap-3 group hover:bg-muted/30">
           <button onClick={() => onOpen(p)} className="flex-1 min-w-0 text-left">
             <p className="text-sm font-medium truncate">{p.name}</p>
             <p className="text-xs text-muted-foreground truncate">
-              {p.client_name || "—"} · {done}/{steps.length} etapas
+              {p.client_name || "—"} · {done}/{steps.length} etapas{current ? ` · ${current.title}` : ""}
             </p>
           </button>
-          <StatusPill domain="process" value={p.status} onChange={(v) => onStatus(p, v as ProcessStatus)} size="xs" />
+          <StatusPill domain="process" value={p.status} size="xs" />
           <button
             onClick={() => onRemove(p.id)}
             className="p-1.5 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
@@ -316,12 +324,10 @@ const KanbanView = ({
   processes,
   stepsByProc,
   onOpen,
-  onStatus,
 }: {
   processes: Process[];
   stepsByProc: Record<string, Step[]>;
   onOpen: (p: Process) => void;
-  onStatus: (p: Process, s: ProcessStatus) => void;
 }) => (
   <div className="overflow-x-auto -mx-2 pb-2">
     <div className="flex gap-3 px-2 min-w-max">
@@ -340,7 +346,6 @@ const KanbanView = ({
                   p={p}
                   steps={stepsByProc[p.id] ?? []}
                   onOpen={() => onOpen(p)}
-                  onStatus={(s) => onStatus(p, s)}
                 />
               ))}
             </div>
@@ -628,65 +633,78 @@ const ProcessDetail = ({
     onChanged();
   };
 
-  const recompute = async (after: Step[]) => {
-    const next = computeProcessStatus(process.status, after);
-    if (next !== process.status) {
-      await supabase.from("processes").update({ status: next }).eq("id", process.id);
-      if (next === "concluido") {
-        await logActivity(userId, "process", process.id, "completed", `Processo concluído: "${process.name}"`);
-        toast.success("Processo concluído");
-      }
+  const persistProcessStatus = async (after: Step[]) => {
+    const next = computeProcessStatus(process.status === "cancelado" ? "cancelado" : autoStatus, after);
+    const { error } = await supabase.from("processes").update({ status: next }).eq("id", process.id);
+    if (error) {
+      toast.error(error.message);
+      return false;
     }
-    onChanged();
+    if (next === "concluido") {
+      await logActivity(userId, "process", process.id, "completed", `Processo concluído: "${process.name}"`);
+      toast.success("Processo concluído");
+    }
+    return true;
   };
 
   const startProcess = async () => {
-    const first = steps.find((s) => s.status === "pendente");
+    const first = [...steps].sort((a, b) => a.position - b.position).find((s) => s.status === "pendente");
     if (!first) return;
-    await supabase.from("process_steps").update({
+    const { error } = await supabase.from("process_steps").update({
       status: "fazendo", started_at: new Date().toISOString(),
     }).eq("id", first.id);
-    const after = steps.map((s) => (s.id === first.id ? { ...s, status: "fazendo" as const } : s));
+    if (error) return toast.error(error.message);
+    const after = steps.map((s) => (s.id === first.id ? { ...s, status: "fazendo" as const, started_at: new Date().toISOString() } : s));
+    const ok = await persistProcessStatus(after);
+    if (!ok) return;
     toast.success("Processo iniciado");
-    await recompute(after);
+    onChanged();
   };
 
   const advanceNext = async (afterSteps: Step[]) => {
-    const nextPending = afterSteps.find((s) => s.status === "pendente");
+    const nextPending = [...afterSteps].sort((a, b) => a.position - b.position).find((s) => s.status === "pendente");
     if (nextPending) {
-      await supabase.from("process_steps").update({
+      const { error } = await supabase.from("process_steps").update({
         status: "fazendo", started_at: new Date().toISOString(),
       }).eq("id", nextPending.id);
+      if (error) {
+        toast.error(error.message);
+        return null;
+      }
       return afterSteps.map((s) => (s.id === nextPending.id ? { ...s, status: "fazendo" as const } : s));
     }
     return afterSteps;
   };
 
   const completeStep = async (s: Step) => {
-    await supabase.from("process_steps").update({
-      status: "feita", completed_at: new Date().toISOString(),
+    const notesValue = obsDraft[s.id] ?? s.notes ?? "";
+    const completedAt = new Date().toISOString();
+    const { error } = await supabase.from("process_steps").update({
+      status: "feita", completed_at: completedAt, notes: notesValue,
     }).eq("id", s.id);
-    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "feita" as const } : x));
+    if (error) return toast.error(error.message);
+    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "feita" as const, completed_at: completedAt, notes: notesValue } : x));
     after = await advanceNext(after);
+    if (!after) return;
+    const ok = await persistProcessStatus(after);
+    if (!ok) return;
     toast.success("Etapa concluída");
-    await recompute(after);
+    onChanged();
   };
 
   const dismissStep = async (s: Step) => {
-    await supabase.from("process_steps").update({
-      status: "pulado", dismissed_at: new Date().toISOString(),
+    const notesValue = obsDraft[s.id] ?? s.notes ?? "";
+    const dismissedAt = new Date().toISOString();
+    const { error } = await supabase.from("process_steps").update({
+      status: "pulado", dismissed_at: dismissedAt, notes: notesValue,
     }).eq("id", s.id);
-    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "pulado" as const } : x));
+    if (error) return toast.error(error.message);
+    let after = steps.map((x) => (x.id === s.id ? { ...x, status: "pulado" as const, dismissed_at: dismissedAt, notes: notesValue } : x));
     after = await advanceNext(after);
+    if (!after) return;
+    const ok = await persistProcessStatus(after);
+    if (!ok) return;
     toast.success("Etapa dispensada");
-    await recompute(after);
-  };
-
-  const reopenStep = async (s: Step) => {
-    await supabase.from("process_steps").update({
-      status: "fazendo", completed_at: null, dismissed_at: null, started_at: new Date().toISOString(),
-    }).eq("id", s.id);
-    toast.success("Etapa reaberta");
     onChanged();
   };
 
@@ -718,12 +736,6 @@ const ProcessDetail = ({
     await supabase.from("processes").update({ status: "cancelado" }).eq("id", process.id);
     await logActivity(userId, "process", process.id, "status_changed", `Processo cancelado: "${process.name}"`);
     toast.success("Processo cancelado");
-    onChanged();
-  };
-
-  const reopenProcess = async () => {
-    await supabase.from("processes").update({ status: "em_andamento" }).eq("id", process.id);
-    toast.success("Processo reaberto");
     onChanged();
   };
 
@@ -762,11 +774,7 @@ const ProcessDetail = ({
                 Cancelar processo
               </Button>
             )}
-            {isCancelled && (
-              <Button size="sm" variant="outline" onClick={reopenProcess}>
-                <RotateCcw className="h-3.5 w-3.5" /> Reabrir
-              </Button>
-            )}
+            {isCancelled && <span className="text-xs text-muted-foreground">Processo cancelado manualmente.</span>}
           </div>
         </div>
 
@@ -778,8 +786,9 @@ const ProcessDetail = ({
               key={s.id}
               s={s}
               index={steps.findIndex((x) => x.id === s.id)}
-              onReopen={() => reopenStep(s)}
-              onRemove={() => removeStep(s.id)}
+              draft={obsDraft[s.id] ?? s.notes ?? ""}
+              onDraftChange={(v) => setObsDraft((p) => ({ ...p, [s.id]: v }))}
+              onSaveObservation={() => saveObservation(s)}
             />
           ))}
 
@@ -819,12 +828,7 @@ const ProcessDetail = ({
                       <span className="w-5 tabular-nums">{steps.findIndex((x) => x.id === s.id) + 1}.</span>
                       <span className="flex-1 truncate">{s.title}</span>
                       {s.due_date && <span className="tabular-nums">{s.due_date}</span>}
-                      <button
-                        onClick={() => removeStep(s.id)}
-                        className="opacity-0 group-hover:opacity-100 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      <StatusPill domain="process_step" value={s.status} size="xs" />
                     </li>
                   ))}
                 </ul>
@@ -886,8 +890,14 @@ const ProcessDetail = ({
 };
 
 const ResolvedStepRow = ({
-  s, index, onReopen, onRemove,
-}: { s: Step; index: number; onReopen: () => void; onRemove: () => void }) => {
+  s, index, draft, onDraftChange, onSaveObservation,
+}: {
+  s: Step;
+  index: number;
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onSaveObservation: () => void;
+}) => {
   const isDismissed = s.status === "pulado";
   return (
     <div
@@ -917,21 +927,24 @@ const ResolvedStepRow = ({
         {s.notes && (
           <p className="text-[11px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{s.notes}</p>
         )}
+        <details className="mt-1">
+          <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground">
+            Editar observação
+          </summary>
+          <div className="mt-2 space-y-1">
+            <Textarea
+              value={draft}
+              onChange={(e) => onDraftChange(e.target.value)}
+              className="min-h-[56px] text-xs"
+              placeholder="Observação desta etapa…"
+            />
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onSaveObservation}>
+              Salvar observação
+            </Button>
+          </div>
+        </details>
       </div>
       <StatusPill domain="process_step" value={s.status} size="xs" />
-      <button
-        onClick={onReopen}
-        className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
-        title="Reabrir etapa"
-      >
-        <RotateCcw className="h-3.5 w-3.5" />
-      </button>
-      <button
-        onClick={onRemove}
-        className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
     </div>
   );
 };
