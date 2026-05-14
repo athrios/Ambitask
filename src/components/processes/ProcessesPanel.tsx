@@ -629,35 +629,44 @@ const ProcessDetail = ({
     onChanged();
   };
 
-  const recompute = async (after: Step[]) => {
-    const next = computeProcessStatus(process.status, after);
-    if (next !== process.status) {
-      await supabase.from("processes").update({ status: next }).eq("id", process.id);
-      if (next === "concluido") {
-        await logActivity(userId, "process", process.id, "completed", `Processo concluído: "${process.name}"`);
-        toast.success("Processo concluído");
-      }
+  const persistProcessStatus = async (after: Step[]) => {
+    const next = computeProcessStatus(process.status === "cancelado" ? "cancelado" : autoStatus, after);
+    const { error } = await supabase.from("processes").update({ status: next }).eq("id", process.id);
+    if (error) {
+      toast.error(error.message);
+      return false;
     }
-    onChanged();
+    if (next === "concluido") {
+      await logActivity(userId, "process", process.id, "completed", `Processo concluído: "${process.name}"`);
+      toast.success("Processo concluído");
+    }
+    return true;
   };
 
   const startProcess = async () => {
-    const first = steps.find((s) => s.status === "pendente");
+    const first = [...steps].sort((a, b) => a.position - b.position).find((s) => s.status === "pendente");
     if (!first) return;
-    await supabase.from("process_steps").update({
+    const { error } = await supabase.from("process_steps").update({
       status: "fazendo", started_at: new Date().toISOString(),
     }).eq("id", first.id);
-    const after = steps.map((s) => (s.id === first.id ? { ...s, status: "fazendo" as const } : s));
+    if (error) return toast.error(error.message);
+    const after = steps.map((s) => (s.id === first.id ? { ...s, status: "fazendo" as const, started_at: new Date().toISOString() } : s));
+    const ok = await persistProcessStatus(after);
+    if (!ok) return;
     toast.success("Processo iniciado");
-    await recompute(after);
+    onChanged();
   };
 
   const advanceNext = async (afterSteps: Step[]) => {
-    const nextPending = afterSteps.find((s) => s.status === "pendente");
+    const nextPending = [...afterSteps].sort((a, b) => a.position - b.position).find((s) => s.status === "pendente");
     if (nextPending) {
-      await supabase.from("process_steps").update({
+      const { error } = await supabase.from("process_steps").update({
         status: "fazendo", started_at: new Date().toISOString(),
       }).eq("id", nextPending.id);
+      if (error) {
+        toast.error(error.message);
+        return afterSteps;
+      }
       return afterSteps.map((s) => (s.id === nextPending.id ? { ...s, status: "fazendo" as const } : s));
     }
     return afterSteps;
