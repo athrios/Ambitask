@@ -619,16 +619,6 @@ const ProcessDetail = ({
 
   const autoStatus = computeProcessStatus(process.status, steps);
 
-  const persistAutoStatus = async () => {
-    const next = computeProcessStatus(process.status, steps);
-    if (next !== process.status) {
-      await supabase.from("processes").update({ status: next }).eq("id", process.id);
-      if (next === "concluido") {
-        await logActivity(userId, "process", process.id, "completed", `Processo concluído: "${process.name}"`);
-      }
-    }
-  };
-
   const saveDetails = async () => {
     const { error } = await supabase.from("processes").update({
       name, client_name: client, due_date: due || null, notes,
