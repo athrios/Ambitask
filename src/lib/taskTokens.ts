@@ -92,9 +92,6 @@ export const priorityPill: Record<Priority, string> = {
 export const processStatusPill: Record<ProcessStatus, string> = {
   nao_iniciado: "bg-[hsl(var(--status-pendente-bg))] text-[hsl(var(--status-pendente))]",
   em_andamento: "bg-[hsl(var(--status-fazendo-bg))] text-[hsl(var(--status-fazendo))]",
-  aguardando_cliente: "bg-[hsl(var(--status-aguardando-bg))] text-[hsl(var(--status-aguardando))]",
-  aguardando_orgao: "bg-[hsl(var(--status-aguardando-bg))] text-[hsl(var(--status-aguardando))]",
-  em_exigencia: "bg-[hsl(var(--prio-urgente-bg))] text-[hsl(var(--prio-urgente))]",
   concluido: "bg-[hsl(var(--status-feita-bg))] text-[hsl(var(--status-feita))]",
   cancelado: "bg-[hsl(var(--status-cancelado-bg))] text-[hsl(var(--status-cancelado))]",
 };
