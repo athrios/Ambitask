@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Play, SkipForward, RotateCcw, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Play, SkipForward, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/shared/StatusPill";
@@ -26,7 +26,6 @@ import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PROCESS_STATUS, type ProcessStatus } from "@/lib/taskTokens";
 import { logActivity } from "@/lib/activityLog";
-import { ActivityLogList } from "@/components/shared/ActivityLogList";
 import { addDaysISO } from "@/lib/recurrence";
 
 interface Template {
@@ -157,17 +156,6 @@ export const ProcessesPanel = ({ userId }: Props) => {
     }
     await logActivity(userId, "process", proc.id, "created", `Processo criado: "${name}"`);
     toast.success(tpl ? `Processo criado a partir de ${tpl.name}` : "Processo criado");
-    load();
-  };
-
-  const updateProcess = async (id: string, patch: Partial<Process>) => {
-    const proc = processes.find((p) => p.id === id);
-    const { error } = await supabase.from("processes").update(patch).eq("id", id);
-    if (error) return toast.error(error.message);
-    if (patch.status && proc) {
-      await logActivity(userId, "process", id, "status_changed", `Status: ${proc.status} → ${patch.status}`);
-      toast.success("Status atualizado");
-    }
     load();
   };
 
