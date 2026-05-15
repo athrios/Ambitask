@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { NoteField } from "@/components/shared/NoteField";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -396,7 +397,12 @@ export const TasksPanel = ({
     load();
   };
 
-  const persistNote = (id: string, value: string, kind: "task" | "sub") => {
+  const saveNote = async (id: string, value: string, kind: "task" | "sub") => {
+    const { error } = await supabase
+      .from(kind === "task" ? "tasks" : "subtasks")
+      .update({ notes: value })
+      .eq("id", id);
+    if (error) throw error;
     if (kind === "task") {
       setTasks((p) => p.map((t) => (t.id === id ? { ...t, notes: value } : t)));
     } else {
@@ -406,9 +412,6 @@ export const TasksPanel = ({
         return next;
       });
     }
-  };
-  const flushNote = (id: string, value: string, kind: "task" | "sub") => {
-    supabase.from(kind === "task" ? "tasks" : "subtasks").update({ notes: value }).eq("id", id);
   };
 
   const toggleExpand = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
@@ -577,13 +580,15 @@ export const TasksPanel = ({
                   )}
                 </div>
                 {noteOpen && (
-                  <Textarea
-                    value={s.notes}
-                    onChange={(e) => persistNote(s.id, e.target.value, "sub")}
-                    onBlur={(e) => flushNote(s.id, e.target.value, "sub")}
-                    placeholder="Observação..."
-                    className="text-xs min-h-[56px] ml-6"
-                  />
+                  <div className="ml-6">
+                    <NoteField
+                      value={s.notes}
+                      onSave={(v) => saveNote(s.id, v, "sub")}
+                      placeholder="Observação..."
+                      className="text-xs min-h-[56px]"
+                      rows={2}
+                    />
+                  </div>
                 )}
               </li>
             );
@@ -687,10 +692,9 @@ export const TasksPanel = ({
         </div>
         {notesOpen[noteKey] && (
           <div className="px-10 pb-2">
-            <Textarea
+            <NoteField
               value={t.notes}
-              onChange={(e) => persistNote(t.id, e.target.value, "task")}
-              onBlur={(e) => flushNote(t.id, e.target.value, "task")}
+              onSave={(v) => saveNote(t.id, v, "task")}
               placeholder="Observação da tarefa..."
               className="text-sm min-h-[60px]"
             />
@@ -903,13 +907,14 @@ export const TasksPanel = ({
                         <TableRow>
                           <TableCell colSpan={7} className="bg-muted/30">
                             {notesOpen[noteKey] && (
-                              <Textarea
-                                value={t.notes}
-                                onChange={(e) => persistNote(t.id, e.target.value, "task")}
-                                onBlur={(e) => flushNote(t.id, e.target.value, "task")}
-                                placeholder="Observação..."
-                                className="mb-2 text-sm"
-                              />
+                              <div className="mb-2">
+                                <NoteField
+                                  value={t.notes}
+                                  onSave={(v) => saveNote(t.id, v, "task")}
+                                  placeholder="Observação..."
+                                  className="text-sm"
+                                />
+                              </div>
                             )}
                             {expanded[t.id] && <SubsBlock t={t} />}
                           </TableCell>
@@ -948,10 +953,9 @@ export const TasksPanel = ({
                     <DueDate t={t} />
                   </div>
                   {notesOpen[noteKey] && (
-                    <Textarea
+                    <NoteField
                       value={t.notes}
-                      onChange={(e) => persistNote(t.id, e.target.value, "task")}
-                      onBlur={(e) => flushNote(t.id, e.target.value, "task")}
+                      onSave={(v) => saveNote(t.id, v, "task")}
                       placeholder="Observação..."
                       className="text-sm"
                     />
