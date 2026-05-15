@@ -193,6 +193,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
         <KanbanView
           processes={processes}
           stepsByProc={stepsByProc}
+          templates={templates}
           onOpen={setOpenProc}
         />
       ) : view === "list" ? (
