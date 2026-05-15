@@ -478,8 +478,9 @@ export const TasksPanel = ({
     ) : (
       <button
         onDoubleClick={() => startEdit(t)}
+        title={t.title}
         className={cn(
-          "flex-1 text-left text-sm leading-snug truncate",
+          "flex-1 min-w-0 text-left text-sm leading-snug truncate",
           t.done && "line-through text-muted-foreground",
         )}
       >
