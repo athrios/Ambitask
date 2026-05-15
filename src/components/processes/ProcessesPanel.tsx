@@ -254,11 +254,13 @@ const ProcessCard = ({
   p,
   steps,
   templateName,
+  templateColor = "gray",
   onOpen,
 }: {
   p: Process;
   steps: Step[];
   templateName?: string | null;
+  templateColor?: TemplateColor;
   onOpen: () => void;
 }) => {
   const done = steps.filter((s) => s.status === "feita" || s.status === "pulado").length;
@@ -277,16 +279,24 @@ const ProcessCard = ({
           onOpen();
         }
       }}
-      className="rounded-xl border bg-card p-4 hover:shadow-sm transition group cursor-pointer text-left"
+      className={cn(
+        "rounded-xl border bg-card p-4 hover:shadow-sm transition group cursor-pointer text-left border-l-4",
+        colorLeftBorder[templateColor],
+      )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <span
+            className={cn(
+              "inline-flex items-center max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+              colorPill[templateColor],
+            )}
+          >
+            {templateName ?? "Processo avulso"}
+          </span>
           <h4 className="text-sm font-semibold truncate">{p.name}</h4>
-          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-            {templateName ? `Modelo: ${templateName}` : "Processo avulso"}
-          </p>
           {p.client_name && (
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{p.client_name}</p>
+            <p className="text-xs text-muted-foreground truncate">{p.client_name}</p>
           )}
         </div>
         <StatusPill domain="process" value={p.status} size="xs" />
