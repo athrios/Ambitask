@@ -562,6 +562,7 @@ const TemplateManager = ({
   const [open, setOpen] = useState(false);
   const [stepsByTpl, setStepsByTpl] = useState<Record<string, TmplStep[]>>({});
   const [newTplName, setNewTplName] = useState("");
+  const [newTplColor, setNewTplColor] = useState<TemplateColor>("gray");
   const [stepInput, setStepInput] = useState<Record<string, string>>({});
 
   const loadSteps = async () => {
@@ -585,10 +586,21 @@ const TemplateManager = ({
   const addTpl = async () => {
     const n = newTplName.trim();
     if (!n) return;
-    const { error } = await supabase.from("process_templates").insert({ name: n, user_id: userId });
+    const { error } = await supabase
+      .from("process_templates")
+      .insert({ name: n, user_id: userId, color: newTplColor } as never);
     if (error) return toast.error(error.message);
     toast.success("Modelo criado");
     setNewTplName("");
+    setNewTplColor("gray");
+    reload();
+  };
+  const updateTplColor = async (id: string, color: TemplateColor) => {
+    const { error } = await supabase
+      .from("process_templates")
+      .update({ color } as never)
+      .eq("id", id);
+    if (error) return toast.error(error.message);
     reload();
   };
   const removeTpl = async (id: string) => {
