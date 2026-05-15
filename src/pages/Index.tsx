@@ -47,7 +47,7 @@ const SECTION_META: Record<
   today: { label: "Hoje", icon: Sun, subtitle: "O que precisa acontecer hoje." },
   agenda: { label: "Agenda", icon: CalendarRange, subtitle: "Visão de tarefas e processos por dia, semana e mês." },
   schedule: { label: "Cronograma", icon: CalendarClock, subtitle: "Sua agenda do dia, bloco a bloco." },
-  tasks: { label: "Tarefas", icon: ListChecks, subtitle: "Tudo que você está cuidando." },
+  tasks: { label: "Tarefas", icon: ListChecks, subtitle: "Organize suas tarefas por data, status e prioridade." },
   processes: { label: "Processos", icon: Workflow, subtitle: "Processos recorrentes em execução." },
   forms: { label: "Formulários", icon: FileText, subtitle: "Formulários para receber solicitações." },
   requests: { label: "Solicitações", icon: Inbox, subtitle: "Respostas recebidas dos formulários." },
@@ -193,14 +193,6 @@ const Index = () => {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   className="w-auto h-9"
-                />
-              )}
-              {section === "tasks" && (
-                <TaskDatePicker
-                  date={date}
-                  onChange={setDate}
-                  userId={user.id}
-                  refreshKey={tasks.length}
                 />
               )}
             </header>

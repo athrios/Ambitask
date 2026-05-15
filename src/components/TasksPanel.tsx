@@ -69,6 +69,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
@@ -143,6 +144,7 @@ export const TasksPanel = ({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "todos">("todos");
   const [priorityFilter, setPriorityFilter] = useState<Priority | "todos">("todos");
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>(
     () => (lsGet<ViewMode>("tasksView", "list")),
   );
@@ -155,9 +157,12 @@ export const TasksPanel = ({
 
   const load = async () => {
     let query = supabase.from("tasks").select("*");
-    if (filter === "all") query = query.eq("task_date", date);
+    // "all" = show every task across dates; calendar is just an optional filter
     if (filter === "today") query = query.eq("task_date", today);
-    query = query.order("position", { ascending: true }).order("created_at", { ascending: true });
+    query = query
+      .order("task_date", { ascending: true })
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true });
     const { data, error } = await query;
     if (error) return toast.error(error.message);
     let list = (data ?? []) as Task[];
@@ -189,16 +194,42 @@ export const TasksPanel = ({
       if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== "todos" && (t.status ?? "pendente") !== statusFilter) return false;
       if (priorityFilter !== "todos" && (t.priority ?? "media") !== priorityFilter) return false;
+      if (dateFilter && t.task_date !== dateFilter) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, priorityFilter]);
+  }, [tasks, search, statusFilter, priorityFilter, dateFilter]);
+
+  // Group tasks by task_date for the list view
+  const groupedByDate = useMemo(() => {
+    const groups = new Map<string, Task[]>();
+    for (const t of filtered) {
+      const key = t.task_date || "__nodate__";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
+    }
+    const entries = Array.from(groups.entries());
+    entries.sort(([a], [b]) => {
+      if (a === "__nodate__") return 1;
+      if (b === "__nodate__") return -1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return entries;
+  }, [filtered]);
+
+  const formatGroupDate = (iso: string) => {
+    if (iso === "__nodate__") return "Sem data";
+    const d = new Date(iso + "T00:00:00");
+    const txt = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    if (iso === today) return `Hoje · ${txt}`;
+    return txt;
+  };
 
   const add = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const t = title.trim();
     if (!t) return;
     if (t.length > 200) return toast.error("Título muito longo");
-    const targetDate = filter === "today" ? today : date;
+    const targetDate = dateFilter ?? (filter === "today" ? today : today);
     const { data, error } = await supabase.from("tasks").insert({
       title: t,
       task_date: targetDate,
@@ -674,7 +705,7 @@ export const TasksPanel = ({
       <section className="space-y-5">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative w-[220px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={search}
@@ -683,6 +714,28 @@ export const TasksPanel = ({
               className="h-9 pl-8"
             />
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn("h-9 gap-1.5", dateFilter && "border-foreground/40")}
+              >
+                <CalendarIcon className="h-3.5 w-3.5" />
+                {dateFilter
+                  ? new Date(dateFilter + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+                  : "Data"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={dateFilter ? new Date(dateFilter + "T00:00:00") : undefined}
+                onSelect={(d) => setDateFilter(d ? d.toISOString().slice(0, 10) : null)}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as TaskStatus | "todos")}>
             <SelectTrigger className="h-9 w-[140px] text-xs">
               <SelectValue placeholder="Status" />
@@ -732,6 +785,21 @@ export const TasksPanel = ({
           </div>
         </div>
 
+        {dateFilter && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded-full border bg-secondary/60 px-2.5 py-1">
+              <CalendarIcon className="h-3 w-3" />
+              Filtrando: {new Date(dateFilter + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+            </span>
+            <button
+              onClick={() => setDateFilter(null)}
+              className="text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            >
+              Limpar filtro
+            </button>
+          </div>
+        )}
+
         {/* New task */}
         <form onSubmit={add} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
           <Plus className="h-4 w-4 text-muted-foreground" />
@@ -763,10 +831,24 @@ export const TasksPanel = ({
           )
         )}
 
-        {/* List view */}
+        {/* List view — grouped by date */}
         {view === "list" && filtered.length > 0 && (
-          <div className="rounded-lg border bg-card divide-y">
-            {filtered.map(renderListRow)}
+          <div className="space-y-5">
+            {groupedByDate.map(([key, items]) => (
+              <div key={key} className="space-y-2">
+                <div className="flex items-baseline gap-2 px-1">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {formatGroupDate(key)}
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    {items.length}
+                  </span>
+                </div>
+                <div className="rounded-lg border bg-card divide-y">
+                  {items.map(renderListRow)}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
