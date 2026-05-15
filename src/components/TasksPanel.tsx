@@ -396,7 +396,12 @@ export const TasksPanel = ({
     load();
   };
 
-  const persistNote = (id: string, value: string, kind: "task" | "sub") => {
+  const saveNote = async (id: string, value: string, kind: "task" | "sub") => {
+    const { error } = await supabase
+      .from(kind === "task" ? "tasks" : "subtasks")
+      .update({ notes: value })
+      .eq("id", id);
+    if (error) throw error;
     if (kind === "task") {
       setTasks((p) => p.map((t) => (t.id === id ? { ...t, notes: value } : t)));
     } else {
@@ -406,9 +411,6 @@ export const TasksPanel = ({
         return next;
       });
     }
-  };
-  const flushNote = (id: string, value: string, kind: "task" | "sub") => {
-    supabase.from(kind === "task" ? "tasks" : "subtasks").update({ notes: value }).eq("id", id);
   };
 
   const toggleExpand = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
