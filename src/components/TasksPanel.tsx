@@ -229,7 +229,7 @@ export const TasksPanel = ({
     const t = title.trim();
     if (!t) return;
     if (t.length > 200) return toast.error("Título muito longo");
-    const targetDate = filter === "today" ? today : date;
+    const targetDate = dateFilter ?? (filter === "today" ? today : today);
     const { data, error } = await supabase.from("tasks").insert({
       title: t,
       task_date: targetDate,
