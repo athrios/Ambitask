@@ -638,27 +638,42 @@ const TemplateManager = ({
         </DialogHeader>
         <div className="space-y-4">
           <form
-            className="flex gap-2"
+            className="space-y-2"
             onSubmit={(e) => { e.preventDefault(); addTpl(); }}
           >
-            <Input
-              value={newTplName}
-              onChange={(e) => setNewTplName(e.target.value)}
-              placeholder="Novo modelo (ex.: Alteração Contratual)"
-            />
-            <Button type="submit" size="sm">Adicionar</Button>
+            <div className="flex gap-2">
+              <Input
+                value={newTplName}
+                onChange={(e) => setNewTplName(e.target.value)}
+                placeholder="Novo modelo (ex.: Alteração Contratual)"
+              />
+              <Button type="submit" size="sm">Adicionar</Button>
+            </div>
+            <ColorSwatchPicker value={newTplColor} onChange={setNewTplColor} />
           </form>
           <div className="space-y-3">
             {templates.map((t) => {
               const steps = stepsByTpl[t.id] ?? [];
+              const tplColor = asColor(t.color);
               return (
-                <div key={t.id} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold">{t.name}</h4>
+                <div key={t.id} className={cn("rounded-lg border p-3 space-y-2 border-l-4", colorLeftBorder[tplColor])}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                          colorPill[tplColor],
+                        )}
+                      >
+                        {t.name}
+                      </span>
+                    </div>
                     <button onClick={() => removeTpl(t.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  <ColorSwatchPicker value={tplColor} onChange={(c) => updateTplColor(t.id, c)} />
+
                   <ol className="space-y-1 text-sm">
                     {steps.map((s, i) => (
                       <li key={s.id} className="flex items-center gap-2 group">
