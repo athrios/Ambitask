@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { NoteField } from "@/components/shared/NoteField";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
