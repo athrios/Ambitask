@@ -144,6 +144,7 @@ export const TasksPanel = ({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | "todos">("todos");
   const [priorityFilter, setPriorityFilter] = useState<Priority | "todos">("todos");
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
   const [view, setView] = useState<ViewMode>(
     () => (lsGet<ViewMode>("tasksView", "list")),
   );
@@ -156,9 +157,12 @@ export const TasksPanel = ({
 
   const load = async () => {
     let query = supabase.from("tasks").select("*");
-    if (filter === "all") query = query.eq("task_date", date);
+    // "all" = show every task across dates; calendar is just an optional filter
     if (filter === "today") query = query.eq("task_date", today);
-    query = query.order("position", { ascending: true }).order("created_at", { ascending: true });
+    query = query
+      .order("task_date", { ascending: true })
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true });
     const { data, error } = await query;
     if (error) return toast.error(error.message);
     let list = (data ?? []) as Task[];
@@ -190,9 +194,35 @@ export const TasksPanel = ({
       if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== "todos" && (t.status ?? "pendente") !== statusFilter) return false;
       if (priorityFilter !== "todos" && (t.priority ?? "media") !== priorityFilter) return false;
+      if (dateFilter && t.task_date !== dateFilter) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, priorityFilter]);
+  }, [tasks, search, statusFilter, priorityFilter, dateFilter]);
+
+  // Group tasks by task_date for the list view
+  const groupedByDate = useMemo(() => {
+    const groups = new Map<string, Task[]>();
+    for (const t of filtered) {
+      const key = t.task_date || "__nodate__";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(t);
+    }
+    const entries = Array.from(groups.entries());
+    entries.sort(([a], [b]) => {
+      if (a === "__nodate__") return 1;
+      if (b === "__nodate__") return -1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return entries;
+  }, [filtered]);
+
+  const formatGroupDate = (iso: string) => {
+    if (iso === "__nodate__") return "Sem data";
+    const d = new Date(iso + "T00:00:00");
+    const txt = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    if (iso === today) return `Hoje · ${txt}`;
+    return txt;
+  };
 
   const add = async (e?: React.FormEvent) => {
     e?.preventDefault();
