@@ -324,6 +324,33 @@ const DateField = ({
   );
 };
 
+const ColorSwatchPicker = ({
+  value,
+  onChange,
+}: {
+  value: TemplateColor;
+  onChange: (c: TemplateColor) => void;
+}) => (
+  <div className="flex items-center gap-1.5 flex-wrap">
+    {TEMPLATE_COLORS.map((c) => (
+      <button
+        key={c.key}
+        type="button"
+        onClick={() => onChange(c.key)}
+        title={c.label}
+        aria-label={c.label}
+        className={cn(
+          "h-5 w-5 rounded-full border transition",
+          c.swatch,
+          value === c.key
+            ? "ring-2 ring-offset-2 ring-foreground/60 ring-offset-background"
+            : "opacity-80 hover:opacity-100",
+        )}
+      />
+    ))}
+  </div>
+);
+
 
 /* ───────── Sub-components ───────── */
 
