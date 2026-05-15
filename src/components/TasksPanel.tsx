@@ -952,10 +952,9 @@ export const TasksPanel = ({
                     <DueDate t={t} />
                   </div>
                   {notesOpen[noteKey] && (
-                    <Textarea
+                    <NoteField
                       value={t.notes}
-                      onChange={(e) => persistNote(t.id, e.target.value, "task")}
-                      onBlur={(e) => flushNote(t.id, e.target.value, "task")}
+                      onSave={(v) => saveNote(t.id, v, "task")}
                       placeholder="Observação..."
                       className="text-sm"
                     />
