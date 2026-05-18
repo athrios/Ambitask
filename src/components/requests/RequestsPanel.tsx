@@ -177,7 +177,7 @@ export const RequestsPanel = ({ userId }: Props) => {
                   </div>
                   <div className="space-y-2">
                     {items.map((r) => (
-                      <RequestCard key={r.id} r={r} title={formTitle(r.form_id)} onOpen={() => setOpen(r)} />
+                      <RequestCard key={r.id} r={r} title={formTitle(r.form_id)} color={formColor(r.form_id)} onOpen={() => setOpen(r)} />
                     ))}
                   </div>
                 </div>
