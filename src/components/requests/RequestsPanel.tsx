@@ -48,7 +48,7 @@ export const RequestsPanel = ({ userId }: Props) => {
 
   const load = async () => {
     const [f, r] = await Promise.all([
-      supabase.from("forms").select("id,title"),
+      supabase.from("forms").select("id,title,color"),
       supabase.from("form_responses").select("*").order("created_at", { ascending: false }),
     ]);
     setForms((f.data ?? []) as FormRow[]);
@@ -57,6 +57,12 @@ export const RequestsPanel = ({ userId }: Props) => {
   useEffect(() => { load(); }, []);
 
   const formTitle = (id: string) => forms.find((f) => f.id === id)?.title ?? "—";
+  const formColor = (id: string): TemplateColor => asColor(forms.find((f) => f.id === id)?.color);
+  const FormPill = ({ formId }: { formId: string }) => (
+    <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border", colorPill[formColor(formId)])}>
+      {formTitle(formId)}
+    </span>
+  );
 
   const updateStatus = async (id: string, status: RequestStatus) => {
     await supabase.from("form_responses").update({ status }).eq("id", id);
