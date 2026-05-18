@@ -228,7 +228,12 @@ const FormBuilder = ({
   useEffect(() => { load(); }, [form.id]);
 
   const saveMeta = async () => {
-    await supabase.from("forms").update({ title, description: desc }).eq("id", form.id);
+    await supabase.from("forms").update({ title, description: desc, color }).eq("id", form.id);
+  };
+
+  const updateColor = async (c: ReturnType<typeof asColor>) => {
+    setColor(c);
+    await supabase.from("forms").update({ color: c }).eq("id", form.id);
   };
 
   const addField = async (type: FieldType) => {
