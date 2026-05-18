@@ -167,7 +167,8 @@ export const TasksPanel = ({
   const today = new Date().toISOString().slice(0, 10);
 
   const load = async () => {
-    let query = supabase.from("tasks").select("*");
+    if (!workspaceId) { setTasks([]); setSubtasks({}); return; }
+    let query = supabase.from("tasks").select("*").eq("workspace_id", workspaceId);
     // "all" = show every task across dates; calendar is just an optional filter
     if (filter === "today") query = query.eq("task_date", today);
     query = query
@@ -198,7 +199,7 @@ export const TasksPanel = ({
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, filter]);
+  }, [date, filter, workspaceId]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
