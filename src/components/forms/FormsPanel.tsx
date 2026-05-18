@@ -23,6 +23,7 @@ import { Plus, Trash2, Link as LinkIcon, FileText, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { logActivity } from "@/lib/activityLog";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { TEMPLATE_COLORS, colorPill, colorLeftBorder, asColor } from "@/components/processes/templateColors";
 import { cn } from "@/lib/utils";
 
