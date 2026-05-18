@@ -200,13 +200,15 @@ export const TasksPanel = ({
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
+      const s = (t.status ?? "pendente") as TaskStatus;
       if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter !== "todos" && (t.status ?? "pendente") !== statusFilter) return false;
+      if (statusFilter !== "todos" && s !== statusFilter) return false;
+      if (hiddenStatuses.includes(s)) return false;
       if (priorityFilter !== "todos" && (t.priority ?? "media") !== priorityFilter) return false;
       if (dateFilter && t.task_date !== dateFilter) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, priorityFilter, dateFilter]);
+  }, [tasks, search, statusFilter, hiddenStatuses, priorityFilter, dateFilter]);
 
   // Group tasks by task_date for the list view
   const groupedByDate = useMemo(() => {
