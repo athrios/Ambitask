@@ -249,7 +249,8 @@ export const TasksPanel = ({
       task_date: targetDate,
       user_id: userId,
       position: tasks.length,
-    }).select().single();
+      workspace_id: workspaceId ?? undefined,
+    } as never).select().single();
     if (error) return toast.error(error.message);
     setTitle("");
     if (data) await logActivity(userId, "task", data.id, "created", `Tarefa criada: "${t}"`);
