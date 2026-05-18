@@ -200,7 +200,7 @@ export const RequestsPanel = ({ userId }: Props) => {
               className="w-full text-left px-4 py-3 hover:bg-muted/30 flex items-center gap-3"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{formTitle(r.form_id)}</p>
+                <FormPill formId={r.form_id} />
                 <p className="text-xs text-muted-foreground truncate">
                   {r.submitter_name || "Anônimo"} · {new Date(r.created_at).toLocaleString("pt-BR")}
                 </p>
