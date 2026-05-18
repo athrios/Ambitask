@@ -79,6 +79,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 export interface Task {
   id: string;
