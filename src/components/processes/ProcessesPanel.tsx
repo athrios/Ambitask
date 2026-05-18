@@ -82,6 +82,7 @@ interface Props {
 }
 
 export const ProcessesPanel = ({ userId }: Props) => {
+  const { workspaceId } = useWorkspace();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [processes, setProcesses] = useState<Process[]>([]);
   const [stepsByProc, setStepsByProc] = useState<Record<string, Step[]>>({});
@@ -89,9 +90,10 @@ export const ProcessesPanel = ({ userId }: Props) => {
   const [openProc, setOpenProc] = useState<Process | null>(null);
 
   const load = async () => {
+    if (!workspaceId) return;
     const [t, p] = await Promise.all([
-      supabase.from("process_templates").select("*").order("created_at", { ascending: true }),
-      supabase.from("processes").select("*").order("created_at", { ascending: false }),
+      supabase.from("process_templates").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: true }),
+      supabase.from("processes").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }),
     ]);
     if (t.error) return toast.error(t.error.message);
     if (p.error) return toast.error(p.error.message);
@@ -102,6 +104,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
       const { data: s } = await supabase
         .from("process_steps")
         .select("*")
+        .eq("workspace_id", workspaceId)
         .in("process_id", procs.map((x) => x.id))
         .order("position", { ascending: true });
       (s ?? []).forEach((row) => {
@@ -130,14 +133,16 @@ export const ProcessesPanel = ({ userId }: Props) => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [workspaceId]);
 
   const createProcess = async (templateId: string | null, name: string, dueDate: string | null) => {
+    if (!workspaceId) return toast.error("Selecione um ambiente");
     const tpl = templates.find((t) => t.id === templateId);
     const { data: proc, error } = await supabase
       .from("processes")
       .insert({
         user_id: userId,
+        workspace_id: workspaceId,
         name,
         template_id: templateId,
         status: "nao_iniciado",
@@ -151,6 +156,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
       const { data: tmplSteps, error: stepsError } = await supabase
         .from("process_template_steps")
         .select("*")
+        .eq("workspace_id", workspaceId)
         .eq("template_id", templateId)
         .order("position", { ascending: true });
       if (stepsError) return toast.error(stepsError.message);
@@ -160,6 +166,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
         return {
           process_id: proc.id,
           user_id: userId,
+          workspace_id: workspaceId,
           position: i,
           title: s.title,
           status: "pendente" as const,
