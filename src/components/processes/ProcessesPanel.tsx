@@ -916,9 +916,9 @@ const ProcessDetail = ({
 
   const addStep = async () => {
     const t = stepInput.trim();
-    if (!t) return;
+    if (!t || !workspaceId) return;
     await supabase.from("process_steps").insert({
-      process_id: process.id, user_id: userId, title: t, position: steps.length, status: "pendente",
+      process_id: process.id, user_id: userId, workspace_id: workspaceId, title: t, position: steps.length, status: "pendente",
     });
     setStepInput("");
     onChanged();
