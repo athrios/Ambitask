@@ -651,10 +651,10 @@ const TemplateManager = ({
   };
   const addStep = async (tplId: string) => {
     const t = (stepInput[tplId] ?? "").trim();
-    if (!t) return;
+    if (!t || !workspaceId) return;
     const pos = (stepsByTpl[tplId] ?? []).length;
     await supabase.from("process_template_steps").insert({
-      template_id: tplId, user_id: userId, title: t, position: pos,
+      template_id: tplId, user_id: userId, workspace_id: workspaceId, title: t, position: pos,
     });
     setStepInput((p) => ({ ...p, [tplId]: "" }));
     loadSteps();
