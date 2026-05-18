@@ -23,6 +23,7 @@ import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { REQUEST_STATUS, type RequestStatus } from "@/lib/taskTokens";
 import { logActivity } from "@/lib/activityLog";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { colorPill, asColor, type TemplateColor } from "@/components/processes/templateColors";
 import { cn } from "@/lib/utils";
 
