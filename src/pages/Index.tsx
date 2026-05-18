@@ -50,7 +50,7 @@ const SECTION_META: Record<
   tasks: { label: "Tarefas", icon: ListChecks, subtitle: "Organize suas tarefas por data, status e prioridade." },
   processes: { label: "Processos", icon: Workflow, subtitle: "Processos recorrentes em execução." },
   forms: { label: "Formulários", icon: FileText, subtitle: "Formulários para receber solicitações." },
-  requests: { label: "Solicitações", icon: Inbox, subtitle: "Respostas recebidas dos formulários." },
+  requests: { label: "Respostas", icon: Inbox, subtitle: "Respostas recebidas dos formulários." },
   done: { label: "Concluídas", icon: CheckCircle2, subtitle: "O que você já tirou da frente." },
   settings: { label: "Configurações", icon: Settings, subtitle: "Preferências do app." },
 };

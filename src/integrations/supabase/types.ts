@@ -140,6 +140,7 @@ export type Database = {
       }
       forms: {
         Row: {
+          color: string
           created_at: string
           description: string
           id: string
@@ -150,6 +151,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          color?: string
           created_at?: string
           description?: string
           id?: string
@@ -160,6 +162,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          color?: string
           created_at?: string
           description?: string
           id?: string

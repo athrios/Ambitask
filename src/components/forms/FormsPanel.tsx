@@ -23,8 +23,10 @@ import { Plus, Trash2, Link as LinkIcon, FileText, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { logActivity } from "@/lib/activityLog";
+import { TEMPLATE_COLORS, colorPill, colorLeftBorder, asColor } from "@/components/processes/templateColors";
+import { cn } from "@/lib/utils";
 
-type FieldType = "short_text" | "long_text" | "select" | "multi_select" | "date";
+type FieldType = "short_text" | "long_text" | "select" | "multi_select" | "date" | "file";
 
 interface Form {
   id: string;
@@ -32,6 +34,7 @@ interface Form {
   description: string;
   public_slug: string;
   is_published: boolean;
+  color: string;
 }
 interface Field {
   id: string;
@@ -49,6 +52,7 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "select", label: "Seleção" },
   { value: "multi_select", label: "Múltipla escolha" },
   { value: "date", label: "Data" },
+  { value: "file", label: "Arquivo / Anexo" },
 ];
 
 interface Props { userId: string }
@@ -147,11 +151,15 @@ export const FormsPanel = ({ userId }: Props) => {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {forms.map((f) => (
-            <div key={f.id} className="rounded-xl border bg-card p-4 group hover:shadow-sm transition">
+          {forms.map((f) => {
+            const c = asColor(f.color);
+            return (
+            <div key={f.id} className={cn("rounded-xl border-l-4 border bg-card p-4 group hover:shadow-sm transition", colorLeftBorder[c])}>
               <div className="flex items-start justify-between gap-2">
                 <button onClick={() => setEditing(f)} className="text-left flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold truncate">{f.title}</h4>
+                  <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border mb-1.5", colorPill[c])}>
+                    {f.title}
+                  </span>
                   {f.description && (
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{f.description}</p>
                   )}
@@ -179,7 +187,8 @@ export const FormsPanel = ({ userId }: Props) => {
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -205,6 +214,7 @@ const FormBuilder = ({
 }) => {
   const [title, setTitle] = useState(form.title);
   const [desc, setDesc] = useState(form.description);
+  const [color, setColor] = useState(asColor(form.color));
   const [fields, setFields] = useState<Field[]>([]);
 
   const load = async () => {
@@ -218,7 +228,12 @@ const FormBuilder = ({
   useEffect(() => { load(); }, [form.id]);
 
   const saveMeta = async () => {
-    await supabase.from("forms").update({ title, description: desc }).eq("id", form.id);
+    await supabase.from("forms").update({ title, description: desc, color }).eq("id", form.id);
+  };
+
+  const updateColor = async (c: ReturnType<typeof asColor>) => {
+    setColor(c);
+    await supabase.from("forms").update({ color: c }).eq("id", form.id);
   };
 
   const addField = async (type: FieldType) => {
@@ -253,6 +268,24 @@ const FormBuilder = ({
           <div>
             <label className="text-xs font-medium">Descrição / Instruções</label>
             <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={saveMeta} className="min-h-[60px]" />
+          </div>
+          <div>
+            <label className="text-xs font-medium block mb-1.5">Cor</label>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPLATE_COLORS.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => updateColor(c.key)}
+                  className={cn(
+                    "h-6 w-6 rounded-full border-2 transition",
+                    c.swatch,
+                    color === c.key ? "border-foreground scale-110" : "border-transparent hover:scale-105",
+                  )}
+                  title={c.label}
+                />
+              ))}
+            </div>
           </div>
           <div>
             <h4 className="text-sm font-semibold mb-2">Campos</h4>

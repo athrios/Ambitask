@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 
-type FieldType = "short_text" | "long_text" | "select" | "multi_select" | "date";
+type FieldType = "short_text" | "long_text" | "select" | "multi_select" | "date" | "file";
 
 interface Form {
   id: string;
@@ -177,6 +177,38 @@ const PublicForm = () => {
                       </label>
                     );
                   })}
+                </div>
+              )}
+              {f.field_type === "file" && (
+                <div className="space-y-1">
+                  <Input
+                    type="file"
+                    required={f.required && !v}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return set(null);
+                      if (file.size > 20 * 1024 * 1024) {
+                        toast.error("Arquivo maior que 20MB");
+                        e.target.value = "";
+                        return;
+                      }
+                      const safe = file.name.replace(/[^\w.\-]+/g, "_");
+                      const path = `${form.user_id}/${form.id}/${crypto.randomUUID()}-${safe}`;
+                      const { error } = await supabase.storage
+                        .from("form-uploads")
+                        .upload(path, file, { upsert: false, contentType: file.type });
+                      if (error) {
+                        toast.error("Falha no upload: " + error.message);
+                        return;
+                      }
+                      set({ path, name: file.name, size: file.size });
+                    }}
+                  />
+                  {v && typeof v === "object" && "name" in (v as object) && (
+                    <p className="text-xs text-muted-foreground truncate">
+                      ✓ {(v as { name: string }).name}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
