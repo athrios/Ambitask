@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useWorkspace, type ModuleKey } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { TasksPanel, type Task, type TasksFilter } from "@/components/TasksPanel";
 import { SchedulePanel } from "@/components/SchedulePanel";
 import { TodayPanel } from "@/components/TodayPanel";
-import { TaskDatePicker } from "@/components/TaskDatePicker";
 import { ProcessesPanel } from "@/components/processes/ProcessesPanel";
 import { FormsPanel } from "@/components/forms/FormsPanel";
 import { RequestsPanel } from "@/components/requests/RequestsPanel";
 import { AgendaPanel } from "@/components/agenda/AgendaPanel";
 import { GlobalSearch } from "@/components/shared/GlobalSearch";
+import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
+import { WorkspacesPanel } from "@/components/workspace/WorkspacesPanel";
 import {
   LogOut,
   CalendarClock,
@@ -52,11 +54,23 @@ const SECTION_META: Record<
   forms: { label: "Formulários", icon: FileText, subtitle: "Formulários para receber solicitações." },
   requests: { label: "Respostas", icon: Inbox, subtitle: "Respostas recebidas dos formulários." },
   done: { label: "Concluídas", icon: CheckCircle2, subtitle: "O que você já tirou da frente." },
-  settings: { label: "Configurações", icon: Settings, subtitle: "Preferências do app." },
+  settings: { label: "Ambientes", icon: Settings, subtitle: "Gerencie ambientes, membros e permissões." },
+};
+
+const SECTION_MODULE: Record<Exclude<Section, "settings">, ModuleKey> = {
+  today: "hoje",
+  agenda: "hoje",
+  schedule: "cronograma",
+  tasks: "tarefas",
+  processes: "processos",
+  forms: "formularios",
+  requests: "solicitacoes",
+  done: "concluidas",
 };
 
 const Index = () => {
   const { user, loading } = useAuth();
+  const { workspaceId, canViewModule, isOwnerOfAny, loading: wsLoading } = useWorkspace();
   const nav = useNavigate();
   const [date, setDate] = useState(today());
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -71,7 +85,6 @@ const Index = () => {
     document.title = "Plano do dia · Tarefas e cronograma";
   }, []);
 
-  // Cmd/Ctrl+K opens global search
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -83,32 +96,40 @@ const Index = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Always preload today's tasks for the schedule import picker
   useEffect(() => {
-    if (!user) return;
+    if (!user || !workspaceId) return;
     supabase
       .from("tasks")
       .select("*")
       .eq("task_date", date)
+      .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: true })
       .then(({ data }) => setTasks((data ?? []) as Task[]));
-  }, [user, date, section]);
+  }, [user, date, section, workspaceId]);
+
+  const allSections: Section[] = [
+    "today", "agenda", "schedule", "tasks", "processes",
+    "forms", "requests", "done", "settings",
+  ];
+
+  const visibleSections = allSections.filter((s) => {
+    if (s === "settings") return isOwnerOfAny;
+    return canViewModule(SECTION_MODULE[s]);
+  });
+
+  // Redirect away from sections the active workspace doesn't allow
+  useEffect(() => {
+    if (wsLoading) return;
+    if (!visibleSections.includes(section)) {
+      setSection(visibleSections[0] ?? "today");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, wsLoading]);
 
   if (loading || !user) return null;
 
   const meta = SECTION_META[section];
   const Icon = meta.icon;
-  const order: Section[] = [
-    "today",
-    "agenda",
-    "schedule",
-    "tasks",
-    "processes",
-    "forms",
-    "requests",
-    "done",
-    "settings",
-  ];
 
   const tasksFilter: TasksFilter =
     section === "today" ? "today" : section === "done" ? "done" : "all";
@@ -116,7 +137,6 @@ const Index = () => {
   return (
     <main className="min-h-screen bg-background">
       <div className="flex min-h-screen">
-        {/* Sidebar */}
         <aside className="w-60 shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col">
           <div className="px-4 py-4 border-b border-sidebar-border">
             <h1 className="text-sm font-semibold tracking-tight text-sidebar-primary">
@@ -127,7 +147,9 @@ const Index = () => {
             </p>
           </div>
 
-          <div className="px-2 pt-2">
+          <WorkspaceSwitcher onManage={() => setSection("settings")} />
+
+          <div className="px-2 pt-1">
             <button
               onClick={() => setSearchOpen(true)}
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-sidebar-foreground/70 border border-sidebar-border hover:bg-sidebar-accent/60"
@@ -139,7 +161,7 @@ const Index = () => {
           </div>
 
           <nav className="flex-1 p-2 space-y-0.5">
-            {order.map((id) => {
+            {visibleSections.map((id) => {
               const m = SECTION_META[id];
               const I = m.icon;
               const active = section === id;
@@ -171,7 +193,6 @@ const Index = () => {
           </div>
         </aside>
 
-        {/* Main */}
         <div className="flex-1 min-w-0">
           <div className="max-w-5xl mx-auto px-8 py-8">
             <header className="mb-6 flex items-start justify-between gap-4">
@@ -215,11 +236,7 @@ const Index = () => {
             {section === "processes" && <ProcessesPanel userId={user.id} />}
             {section === "forms" && <FormsPanel userId={user.id} />}
             {section === "requests" && <RequestsPanel userId={user.id} />}
-            {section === "settings" && (
-              <div className="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-                Configurações em breve.
-              </div>
-            )}
+            {section === "settings" && <WorkspacesPanel />}
           </div>
         </div>
       </div>

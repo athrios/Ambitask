@@ -79,6 +79,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 export interface Task {
   id: string;
@@ -133,6 +134,7 @@ export const TasksPanel = ({
   filter = "all",
   onTasksChange,
 }: Props) => {
+  const { workspaceId } = useWorkspace();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [subtasks, setSubtasks] = useState<Record<string, Subtask[]>>({});
   const [title, setTitle] = useState("");
@@ -165,7 +167,8 @@ export const TasksPanel = ({
   const today = new Date().toISOString().slice(0, 10);
 
   const load = async () => {
-    let query = supabase.from("tasks").select("*");
+    if (!workspaceId) { setTasks([]); setSubtasks({}); return; }
+    let query = supabase.from("tasks").select("*").eq("workspace_id", workspaceId);
     // "all" = show every task across dates; calendar is just an optional filter
     if (filter === "today") query = query.eq("task_date", today);
     query = query
@@ -196,7 +199,7 @@ export const TasksPanel = ({
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, filter]);
+  }, [date, filter, workspaceId]);
 
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
@@ -246,7 +249,8 @@ export const TasksPanel = ({
       task_date: targetDate,
       user_id: userId,
       position: tasks.length,
-    }).select().single();
+      workspace_id: workspaceId ?? undefined,
+    } as never).select().single();
     if (error) return toast.error(error.message);
     setTitle("");
     if (data) await logActivity(userId, "task", data.id, "created", `Tarefa criada: "${t}"`);
@@ -278,6 +282,7 @@ export const TasksPanel = ({
       recurrence_interval: t.recurrence_interval ?? 1,
       recurrence_end_date: t.recurrence_end_date ?? null,
       parent_recurring_task_id: parentId,
+      workspace_id: workspaceId ?? undefined,
     } as never).select().single();
     if (error) return toast.error("Erro ao gerar recorrência: " + error.message);
     if (data) await logActivity(userId, "task", data.id, "recurrence_generated", `Próxima ocorrência criada para ${nextISO}`);
@@ -372,7 +377,7 @@ export const TasksPanel = ({
     const subs = subtasks[taskId] ?? [];
     const { error } = await supabase
       .from("subtasks")
-      .insert({ task_id: taskId, user_id: userId, title: t, position: subs.length });
+      .insert({ task_id: taskId, user_id: userId, title: t, position: subs.length, workspace_id: workspaceId ?? undefined } as never);
     if (error) return toast.error(error.message);
     setSubInput((p) => ({ ...p, [taskId]: "" }));
     await maybeAutoComplete(taskId);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { SchedulePanel } from "./SchedulePanel";
 import { TasksPanel, type Task } from "./TasksPanel";
 import {
@@ -30,6 +31,7 @@ interface PendingRequest {
 }
 
 export const TodayPanel = ({ date, userId }: Props) => {
+  const { workspaceId } = useWorkspace();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [scheduleCount, setScheduleCount] = useState(0);
   const [overdue, setOverdue] = useState<OverdueTask[]>([]);
@@ -37,15 +39,18 @@ export const TodayPanel = ({ date, userId }: Props) => {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
 
   useEffect(() => {
+    if (!workspaceId) return;
     supabase
       .from("schedule_items")
       .select("id", { count: "exact", head: true })
       .eq("task_date", date)
+      .eq("workspace_id", workspaceId)
       .then(({ count }) => setScheduleCount(count ?? 0));
 
     supabase
       .from("tasks")
       .select("id,title,task_date")
+      .eq("workspace_id", workspaceId)
       .lt("task_date", date)
       .not("status", "in", "(feita,cancelado)")
       .order("task_date", { ascending: true })
@@ -55,17 +60,19 @@ export const TodayPanel = ({ date, userId }: Props) => {
     supabase
       .from("processes")
       .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
       .in("status", ["em_andamento", "aguardando_cliente", "aguardando_orgao", "em_exigencia"])
       .then(({ count }) => setActiveProcesses(count ?? 0));
 
     supabase
       .from("form_responses")
       .select("id,submitter_name,created_at")
+      .eq("workspace_id", workspaceId)
       .in("status", ["recebida", "em_analise"])
       .order("created_at", { ascending: false })
       .limit(5)
       .then(({ data }) => setPendingRequests((data ?? []) as PendingRequest[]));
-  }, [date, tasks.length]);
+  }, [date, tasks.length, workspaceId]);
 
   const total = tasks.length;
   const done = tasks.filter((t) => t.done).length;
