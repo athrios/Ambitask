@@ -330,3 +330,18 @@ const RequestCard = ({
     </button>
   );
 };
+
+const FileLink = ({ file }: { file: { path: string; name: string } }) => {
+  const open = async () => {
+    const { data, error } = await supabase.storage
+      .from("form-uploads")
+      .createSignedUrl(file.path, 60);
+    if (error || !data) return toast.error("Não foi possível abrir o arquivo");
+    window.open(data.signedUrl, "_blank");
+  };
+  return (
+    <button onClick={open} className="text-sm text-primary underline underline-offset-2 hover:opacity-80 truncate">
+      📎 {file.name}
+    </button>
+  );
+};
