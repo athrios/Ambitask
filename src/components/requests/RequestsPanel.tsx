@@ -23,8 +23,10 @@ import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { REQUEST_STATUS, type RequestStatus } from "@/lib/taskTokens";
 import { logActivity } from "@/lib/activityLog";
+import { colorPill, asColor, type TemplateColor } from "@/components/processes/templateColors";
+import { cn } from "@/lib/utils";
 
-interface FormRow { id: string; title: string }
+interface FormRow { id: string; title: string; color: string }
 interface Response {
   id: string;
   form_id: string;
