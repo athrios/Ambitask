@@ -50,6 +50,7 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "select", label: "Seleção" },
   { value: "multi_select", label: "Múltipla escolha" },
   { value: "date", label: "Data" },
+  { value: "file", label: "Arquivo / Anexo" },
 ];
 
 interface Props { userId: string }
