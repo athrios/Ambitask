@@ -78,6 +78,7 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
       .from("schedule_items")
       .select("*")
       .eq("task_date", date)
+      .order("position", { ascending: true })
       .order("start_time", { ascending: true });
     if (error) return toast.error(error.message);
     setItems((data ?? []) as ScheduleItem[]);
@@ -88,27 +89,65 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
+  // Cascade: each row's start = base (first row) + sum of previous durations
+  const computedStarts = useMemo(() => {
+    const out: string[] = [];
+    let cursor = items.length > 0 ? toMin(items[0].start_time.slice(0, 5)) : toMin(DAY_START);
+    for (let i = 0; i < items.length; i++) {
+      out.push(fromMin(cursor));
+      cursor += items[i].duration_minutes;
+    }
+    return out;
+  }, [items]);
+
+  const lastEnd = useMemo(() => {
+    if (items.length === 0) return toMin(DAY_START);
+    return toMin(computedStarts[items.length - 1]) + items[items.length - 1].duration_minutes;
+  }, [items, computedStarts]);
+
   const placeholders = useMemo(() => {
-    const filled = items.length;
-    const remaining = Math.max(0, PLACEHOLDER_COUNT - filled);
-    const lastEnd =
-      filled > 0
-        ? toMin(items[items.length - 1].start_time.slice(0, 5)) +
-          items[items.length - 1].duration_minutes
-        : toMin(DAY_START);
+    const remaining = Math.max(0, PLACEHOLDER_COUNT - items.length);
     const slotSize = remaining > 0 ? Math.max(15, Math.round((DAY_END_MIN - lastEnd) / remaining / 15) * 15) : 60;
     return Array.from({ length: remaining }).map((_, i) => ({
       start: fromMin(lastEnd + i * slotSize),
       duration: 60,
     }));
-  }, [items]);
+  }, [items.length, lastEnd]);
+
+  // Persist cascading start_times when items shape/duration/first-start changes.
+  // Compares against DB values and patches only the diffs.
+  const persistCascade = async (next: ScheduleItem[]) => {
+    if (next.length === 0) return;
+    let cursor = toMin(next[0].start_time.slice(0, 5));
+    const updates: Promise<unknown>[] = [];
+    const synced: ScheduleItem[] = [];
+    for (let i = 0; i < next.length; i++) {
+      const expected = fromMin(cursor) + ":00";
+      const it = next[i];
+      if (i > 0 && it.start_time.slice(0, 8) !== expected) {
+        updates.push(
+          supabase.from("schedule_items").update({ start_time: expected }).eq("id", it.id),
+        );
+        synced.push({ ...it, start_time: expected });
+      } else {
+        synced.push(it);
+      }
+      cursor += it.duration_minutes;
+    }
+    if (updates.length) {
+      setItems(synced);
+      await Promise.all(updates);
+    }
+  };
 
   const insertItem = async (
-    start: string,
+    _start: string,
     title: string,
     duration: number,
     taskId: string | null = null,
   ) => {
+    // New row always appended; its start will be computed/persisted by cascade
+    const start = fromMin(lastEnd);
     const { error } = await supabase.from("schedule_items").insert({
       user_id: userId,
       task_date: date,
@@ -119,32 +158,43 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
       task_id: taskId,
     });
     if (error) return toast.error(error.message);
-    load();
+    await load();
   };
 
   const updateItem = async (id: string, patch: Partial<ScheduleItem>) => {
+    // optimistic local update
+    const optimistic = items.map((i) => (i.id === id ? { ...i, ...patch } as ScheduleItem : i));
+    setItems(optimistic);
+
     const { error } = await supabase.from("schedule_items").update(patch).eq("id", id);
-    if (error) return toast.error(error.message);
-    // 2-way sync: if status changed and item is linked, mirror to the task
+    if (error) {
+      toast.error(error.message);
+      return load();
+    }
     if (patch.status !== undefined) {
       const it = items.find((i) => i.id === id);
       if (it?.task_id && patch.status !== "pulado") {
         await supabase
           .from("tasks")
-          .update({
-            status: patch.status,
-            done: patch.status === "feita",
-          })
+          .update({ status: patch.status, done: patch.status === "feita" })
           .eq("id", it.task_id);
       }
     }
-    load();
+    // If duration or first row's start changed, cascade subsequent start_times
+    if (patch.duration_minutes !== undefined || patch.start_time !== undefined) {
+      await persistCascade(optimistic);
+    }
   };
 
   const remove = async (id: string) => {
+    const next = items.filter((i) => i.id !== id);
+    setItems(next);
     const { error } = await supabase.from("schedule_items").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    load();
+    if (error) {
+      toast.error(error.message);
+      return load();
+    }
+    await persistCascade(next);
   };
 
   return (
@@ -153,21 +203,22 @@ export const SchedulePanel = ({ date, userId, tasks }: Props) => {
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Cronograma diário</h2>
           <p className="text-sm text-muted-foreground">
-            Modelo de {DAY_START} às 18:00. Edite os horários e durações livremente.
+            Modelo de {DAY_START} às 18:00. Defina o horário inicial — os demais são calculados pela duração.
           </p>
         </div>
       </header>
 
       <ul className="space-y-1 rounded-lg border bg-card divide-y">
-        {items.map((it) => (
+        {items.map((it, idx) => (
           <ScheduleRow
             key={it.id}
-            start={fmt(it.start_time)}
+            start={computedStarts[idx]}
             title={it.title}
             duration={it.duration_minutes}
             status={it.status}
             tasks={tasks}
             linkedTaskId={it.task_id}
+            isFirst={idx === 0}
             onChangeStart={(v) => updateItem(it.id, { start_time: v + ":00" })}
             onChangeTitle={(v) => updateItem(it.id, { title: v })}
             onChangeDuration={(v) => updateItem(it.id, { duration_minutes: v })}
