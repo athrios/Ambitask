@@ -376,12 +376,9 @@ const PlaceholderRow = ({
 
   return (
     <li className="flex flex-wrap items-center gap-2 px-3 py-2 opacity-70 hover:opacity-100 transition">
-      <Input
-        type="time"
-        value={start}
-        onChange={(e) => setStart(e.target.value)}
-        className="h-8 text-xs w-[100px]"
-      />
+      <div className="h-8 w-[100px] text-xs flex items-center px-2 text-muted-foreground tabular-nums">
+        {start}
+      </div>
       <ImportButton
         tasks={tasks}
         onPick={(task) => {
@@ -413,7 +410,6 @@ const PlaceholderRow = ({
           ))}
         </SelectContent>
       </Select>
-      <span className="text-xs text-muted-foreground hidden md:inline">→ {end}</span>
       <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground w-[110px] text-center">
         Pendente
       </span>
