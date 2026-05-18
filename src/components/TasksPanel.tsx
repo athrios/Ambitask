@@ -134,6 +134,7 @@ export const TasksPanel = ({
   filter = "all",
   onTasksChange,
 }: Props) => {
+  const { workspaceId } = useWorkspace();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [subtasks, setSubtasks] = useState<Record<string, Subtask[]>>({});
   const [title, setTitle] = useState("");
