@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { SchedulePanel } from "./SchedulePanel";
 import { TasksPanel, type Task } from "./TasksPanel";
 import {
