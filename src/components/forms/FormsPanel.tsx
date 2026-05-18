@@ -151,11 +151,15 @@ export const FormsPanel = ({ userId }: Props) => {
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {forms.map((f) => (
-            <div key={f.id} className="rounded-xl border bg-card p-4 group hover:shadow-sm transition">
+          {forms.map((f) => {
+            const c = asColor(f.color);
+            return (
+            <div key={f.id} className={cn("rounded-xl border-l-4 border bg-card p-4 group hover:shadow-sm transition", colorLeftBorder[c])}>
               <div className="flex items-start justify-between gap-2">
                 <button onClick={() => setEditing(f)} className="text-left flex-1 min-w-0">
-                  <h4 className="text-sm font-semibold truncate">{f.title}</h4>
+                  <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border mb-1.5", colorPill[c])}>
+                    {f.title}
+                  </span>
                   {f.description && (
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{f.description}</p>
                   )}
