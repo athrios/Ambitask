@@ -223,9 +223,10 @@ const MembersTab = ({ workspaceId, ownerId }: { workspaceId: string; ownerId: st
   const togglePerm = async (userId: string, module: ModuleKey, key: keyof Omit<Perm, "module" | "id">, value: boolean) => {
     const existing = (perms[userId] ?? []).find((p) => p.module === module);
     if (existing?.id) {
+      const patch: Record<string, boolean> = { [key]: value };
       await supabase
         .from("workspace_permissions")
-        .update({ [key]: value })
+        .update(patch as never)
         .eq("id", existing.id);
     } else {
       const base: Perm = {
