@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Trash2, Download, Link2 } from "lucide-react";
 import { toast } from "sonner";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import type { Task } from "./TasksPanel";
 
 interface ScheduleItem {
