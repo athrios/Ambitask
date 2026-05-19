@@ -8,6 +8,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   ListChecks,
   Workflow,
