@@ -93,7 +93,7 @@ export const NewTaskDialog = ({
       setSubtasks((arr) => [...arr, parsed.value]);
       setSubInput("");
     } else if (subInput.trim()) {
-      toast.error(parsed.error);
+      toast.error((parsed as { ok: false; error: string }).error);
     }
   };
 
@@ -106,7 +106,7 @@ export const NewTaskDialog = ({
     if (editIdx === null) return;
     const parsed = safeParse(subtaskTitleSchema, editValue);
     if (!parsed.ok) {
-      toast.error(parsed.error);
+      toast.error((parsed as { ok: false; error: string }).error);
       return;
     }
     const value = parsed.value;
@@ -119,12 +119,12 @@ export const NewTaskDialog = ({
     if (!workspaceId) return toast.error("Selecione um ambiente de trabalho");
     const titleParsed = safeParse(taskTitleSchema, title);
     if (!titleParsed.ok) {
-      toast.error(titleParsed.error);
+      toast.error((titleParsed as { ok: false; error: string }).error);
       return;
     }
     const notesParsed = safeParse(notesSchema, notes);
     if (!notesParsed.ok) {
-      toast.error(notesParsed.error);
+      toast.error((notesParsed as { ok: false; error: string }).error);
       return;
     }
     if (dueTime && !/^\d{2}:\d{2}$/.test(dueTime)) {
