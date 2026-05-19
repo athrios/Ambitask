@@ -81,7 +81,8 @@ import {
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { TaskReminderEditor } from "@/components/notifications/TaskReminderEditor";
-import { BellRing } from "lucide-react";
+import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { BellRing, Settings2 } from "lucide-react";
 
 
 export interface Task {
