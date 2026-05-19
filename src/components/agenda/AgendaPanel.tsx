@@ -123,12 +123,16 @@ export const AgendaPanel = ({ userId: _userId }: Props) => {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="outline" onClick={() => shift(-1)} className="h-8 px-2">‹</Button>
-          <Button size="sm" variant="outline" onClick={() => setAnchor(today)} className="h-8 text-xs">Hoje</Button>
-          <Button size="sm" variant="outline" onClick={() => shift(1)} className="h-8 px-2">›</Button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-foreground/80 tabular-nums px-1">{monthLabel}</span>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={() => shift(-1)} className="h-8 px-2">‹</Button>
+            <Button size="sm" variant="outline" onClick={() => setAnchor(today)} className="h-8 text-xs">Hoje</Button>
+            <Button size="sm" variant="outline" onClick={() => shift(1)} className="h-8 px-2">›</Button>
+          </div>
         </div>
       </div>
+
 
       {overdueTasks.length > 0 && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3">
