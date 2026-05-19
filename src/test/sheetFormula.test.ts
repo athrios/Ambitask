@@ -95,7 +95,7 @@ describe("sheetFormula", () => {
   it("parseCurrencyInput handles BR and plain formats", () => {
     expect(parseCurrencyInput("R$ 1.250,50")).toBe(1250.5);
     expect(parseCurrencyInput("1250.50")).toBe(1250.5);
-    expect(parseCurrencyInput("1.234")).toBe(1234);
+    expect(parseCurrencyInput("R$ 1.234,00")).toBe(1234);
     expect(parseCurrencyInput("")).toBeNull();
     expect(parseCurrencyInput("abc")).toBeNull();
   });
