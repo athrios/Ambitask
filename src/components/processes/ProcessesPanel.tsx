@@ -40,11 +40,18 @@ import {
   type TemplateColor,
 } from "./templateColors";
 
+import { SheetEditor, emptyTable } from "./SheetEditor";
+import type { TableData } from "@/lib/sheetFormula";
+
+type TemplateKind = "tasks" | "table";
+
 interface Template {
   id: string;
   name: string;
   description: string;
   color?: string;
+  template_type?: TemplateKind;
+  table_schema?: TableData;
   steps?: TmplStep[];
 }
 interface TmplStep {
@@ -63,6 +70,8 @@ interface Process {
   due_date: string | null;
   notes: string;
   created_at?: string;
+  template_type?: TemplateKind;
+  table_data?: TableData;
 }
 interface Step {
   id: string;
