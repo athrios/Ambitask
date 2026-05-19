@@ -81,7 +81,8 @@ import {
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { TaskReminderEditor } from "@/components/notifications/TaskReminderEditor";
-import { BellRing } from "lucide-react";
+import { NewTaskDialog } from "@/components/tasks/NewTaskDialog";
+import { BellRing, Settings2 } from "lucide-react";
 
 
 export interface Task {
@@ -160,6 +161,7 @@ export const TasksPanel = ({
   const [view, setView] = useState<ViewMode>(
     () => (lsGet<ViewMode>("tasksView", "list")),
   );
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("tasksHiddenStatuses", JSON.stringify(hiddenStatuses));
@@ -906,11 +908,34 @@ export const TasksPanel = ({
             className="border-0 shadow-none focus-visible:ring-0 px-0 h-8 text-sm"
           />
           {title && (
-            <Button type="submit" size="sm" className="h-7">
+            <Button type="submit" size="sm" variant="ghost" className="h-7">
               Adicionar
             </Button>
           )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5"
+            onClick={() => setNewDialogOpen(true)}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Configurar
+          </Button>
         </form>
+
+        {workspaceId && (
+          <NewTaskDialog
+            open={newDialogOpen}
+            onOpenChange={setNewDialogOpen}
+            userId={userId}
+            workspaceId={workspaceId}
+            defaultDate={dateFilter ?? today}
+            initialTitle={title}
+            positionHint={tasks.length}
+            onCreated={() => { setTitle(""); load(); }}
+          />
+        )}
 
         {filtered.length === 0 && (
           tasks.length === 0 ? (
