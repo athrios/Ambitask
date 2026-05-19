@@ -637,6 +637,8 @@ export const TasksPanel = ({
 
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [recurEditingId, setRecurEditingId] = useState<string | null>(null);
+  const [reminderTaskId, setReminderTaskId] = useState<string | null>(null);
+
 
   const RowActions = ({ t }: { t: Task }) => (
     <div className="flex items-center gap-0.5">
