@@ -243,6 +243,14 @@ export const TasksPanel = ({
     return txt;
   };
 
+  const monthLabel = useMemo(() => {
+    const firstDated = groupedByDate.find(([k]) => k !== "__nodate__")?.[0];
+    const base = dateFilter ?? firstDated ?? today;
+    const d = new Date(base + "T00:00:00");
+    const txt = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }, [groupedByDate, dateFilter, today]);
+
   const add = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const t = title.trim();
