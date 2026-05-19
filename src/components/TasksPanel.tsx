@@ -243,6 +243,14 @@ export const TasksPanel = ({
     return txt;
   };
 
+  const monthLabel = useMemo(() => {
+    const firstDated = groupedByDate.find(([k]) => k !== "__nodate__")?.[0];
+    const base = dateFilter ?? firstDated ?? today;
+    const d = new Date(base + "T00:00:00");
+    const txt = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }, [groupedByDate, dateFilter, today]);
+
   const add = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const t = title.trim();
@@ -921,12 +929,26 @@ export const TasksPanel = ({
         {/* List view — grouped by date */}
         {view === "list" && filtered.length > 0 && (
           <div className="space-y-5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                {monthLabel}
+              </span>
+            </div>
             {groupedByDate.map(([key, items]) => (
               <div key={key} className="space-y-2">
                 <div className="flex items-baseline gap-2 px-1">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => key !== "__nodate__" && setDateFilter(dateFilter === key ? null : key)}
+                    disabled={key === "__nodate__"}
+                    className={cn(
+                      "text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition text-left",
+                      dateFilter === key && "text-foreground",
+                      key === "__nodate__" && "cursor-default hover:text-muted-foreground",
+                    )}
+                  >
                     {formatGroupDate(key)}
-                  </h3>
+                  </button>
                   <span className="text-[11px] text-muted-foreground tabular-nums">
                     {items.length}
                   </span>
@@ -1170,6 +1192,22 @@ export const TasksPanel = ({
             </DialogContent>
           </Dialog>
         )}
+        {/* Reminder editor */}
+        {reminderTaskId && (() => {
+          const t = tasks.find((x) => x.id === reminderTaskId);
+          if (!t) return null;
+          return (
+            <TaskReminderEditor
+              open
+              onOpenChange={(o) => !o && setReminderTaskId(null)}
+              taskId={t.id}
+              userId={userId}
+              dueDate={t.due_date}
+              dueTime={t.due_time ?? null}
+              onDueTimeChange={() => load()}
+            />
+          );
+        })()}
       </section>
     </TooltipProvider>
   );

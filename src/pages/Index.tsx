@@ -15,6 +15,7 @@ import { GlobalSearch } from "@/components/shared/GlobalSearch";
 import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
 import { WorkspacesPanel } from "@/components/workspace/WorkspacesPanel";
 import { RequireModule, RequireOwner } from "@/components/auth/RequireModule";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import {
   LogOut,
   CalendarClock,
@@ -217,6 +218,7 @@ const Index = () => {
                   className="w-auto h-9"
                 />
               )}
+              <NotificationsBell onOpenTask={() => setSection("tasks")} />
             </header>
 
             {section === "today" && (
