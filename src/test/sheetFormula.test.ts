@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { evaluateCell, buildCellMap, colLetter, colIndex } from "@/lib/sheetFormula";
+import {
+  evaluateCell,
+  buildCellMap,
+  buildColumnTypeMap,
+  colLetter,
+  colIndex,
+  parseCurrencyInput,
+  formatCurrencyBRL,
+  normalizeColumn,
+} from "@/lib/sheetFormula";
 
 describe("sheetFormula", () => {
   it("colLetter / colIndex", () => {
