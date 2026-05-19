@@ -106,8 +106,8 @@ export const ProcessesPanel = ({ userId }: Props) => {
     ]);
     if (t.error) return toast.error(t.error.message);
     if (p.error) return toast.error(p.error.message);
-    setTemplates((t.data ?? []) as Template[]);
-    const procs = (p.data ?? []) as Process[];
+    setTemplates((t.data ?? []) as unknown as Template[]);
+    const procs = (p.data ?? []) as unknown as Process[];
     let grouped: Record<string, Step[]> = {};
     if (procs.length) {
       const { data: s } = await supabase
