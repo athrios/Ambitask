@@ -438,26 +438,35 @@ const ProcessCard = ({
         <StatusPill domain="process" value={p.status} size="xs" />
       </div>
       <div className="mt-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-            <div className="h-full bg-foreground/70" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="text-[11px] text-muted-foreground tabular-nums">
-            {done}/{total}
-          </span>
-        </div>
-        {current && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ChevronRight className="h-3 w-3" />
-            <span className="shrink-0">Etapa atual:</span>
-            <span className="truncate">{current.title}</span>
-          </div>
+        {p.template_type !== "table" && (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-foreground/70" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {done}/{total}
+              </span>
+            </div>
+            {current && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ChevronRight className="h-3 w-3" />
+                <span className="shrink-0">Etapa atual:</span>
+                <span className="truncate">{current.title}</span>
+              </div>
+            )}
+            {currentNote && (
+              <div className="rounded-md bg-muted/40 px-2 py-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação</p>
+                <p className="text-xs text-foreground/80 line-clamp-2 break-words">{currentNote}</p>
+              </div>
+            )}
+          </>
         )}
-        {currentNote && (
-          <div className="rounded-md bg-muted/40 px-2 py-1.5">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação</p>
-            <p className="text-xs text-foreground/80 line-clamp-2 break-words">{currentNote}</p>
-          </div>
+        {p.template_type === "table" && (
+          <p className="text-[11px] text-muted-foreground">
+            {p.table_data?.rows?.length ?? 0} linha(s) · {p.table_data?.columns?.length ?? 0} coluna(s)
+          </p>
         )}
         {p.due_date && (
           <p className="text-[11px] text-muted-foreground">Prazo: {p.due_date}</p>
