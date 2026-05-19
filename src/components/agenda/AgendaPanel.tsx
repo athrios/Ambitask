@@ -63,6 +63,12 @@ export const AgendaPanel = ({ userId: _userId }: Props) => {
 
   const today = todayISO();
 
+  const monthLabel = useMemo(() => {
+    const d = new Date(anchor + "T00:00:00");
+    const s = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }, [anchor]);
+
   const range = useMemo(() => {
     const a = new Date(anchor + "T00:00:00");
     if (view === "day") return [isoOf(a)];
@@ -81,6 +87,7 @@ export const AgendaPanel = ({ userId: _userId }: Props) => {
     for (let i = 1; i <= last.getDate(); i++) days.push(isoOf(new Date(first.getFullYear(), first.getMonth(), i)));
     return days;
   }, [anchor, view]);
+
 
   const dateOf = (t: AgendaTask) => t.due_date ?? t.task_date;
   const overdueTasks = tasks.filter((t) => !t.done && t.due_date && t.due_date < today);
