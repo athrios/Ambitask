@@ -31,7 +31,7 @@ export const CreateWorkspaceDialog = ({ open, onOpenChange }: Props) => {
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
-    const parsed = (await import("@/lib/validation")).workspaceNameSchema.safeParse(name);
+    const parsed = workspaceNameSchema.safeParse(name);
     if (!parsed.success) return toast.error(parsed.error.issues[0]?.message ?? "Nome inválido");
     if (!user) return toast.error("Sessão expirada");
     setSaving(true);
