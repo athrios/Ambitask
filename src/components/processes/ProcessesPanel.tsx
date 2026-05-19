@@ -633,7 +633,9 @@ const TemplateManager = ({
   const [stepsByTpl, setStepsByTpl] = useState<Record<string, TmplStep[]>>({});
   const [newTplName, setNewTplName] = useState("");
   const [newTplColor, setNewTplColor] = useState<TemplateColor>("gray");
+  const [newTplType, setNewTplType] = useState<TemplateKind>("tasks");
   const [stepInput, setStepInput] = useState<Record<string, string>>({});
+  const [tableDraft, setTableDraft] = useState<Record<string, TableData>>({});
 
   const loadSteps = async () => {
     if (!templates.length || !workspaceId) return;
@@ -654,16 +656,49 @@ const TemplateManager = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, templates.length, workspaceId]);
 
+  // Sync table drafts when templates list changes
+  useEffect(() => {
+    setTableDraft((prev) => {
+      const next = { ...prev };
+      templates.forEach((t) => {
+        if (t.template_type === "table" && !next[t.id]) {
+          next[t.id] = t.table_schema ?? emptyTable();
+        }
+      });
+      return next;
+    });
+  }, [templates]);
+
   const addTpl = async () => {
     const n = newTplName.trim();
     if (!n || !workspaceId) return;
     const { error } = await supabase
       .from("process_templates")
-      .insert({ name: n, user_id: userId, workspace_id: workspaceId, color: newTplColor } as never);
+      .insert({
+        name: n,
+        user_id: userId,
+        workspace_id: workspaceId,
+        color: newTplColor,
+        template_type: newTplType,
+        table_schema: newTplType === "table" ? emptyTable() : { columns: [], rows: [] },
+      } as never);
     if (error) return toast.error(error.message);
     toast.success("Modelo criado");
     setNewTplName("");
     setNewTplColor("gray");
+    setNewTplType("tasks");
+    reload();
+  };
+
+  const saveTableSchema = async (id: string) => {
+    const schema = tableDraft[id];
+    if (!schema) return;
+    const { error } = await supabase
+      .from("process_templates")
+      .update({ table_schema: schema } as never)
+      .eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Tabela do modelo salva");
     reload();
   };
 
