@@ -415,14 +415,21 @@ const ProcessCard = ({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0 space-y-1.5">
-          <span
-            className={cn(
-              "inline-flex items-center max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-              colorPill[templateColor],
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span
+              className={cn(
+                "inline-flex items-center max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                colorPill[templateColor],
+              )}
+            >
+              {templateName ?? "Processo avulso"}
+            </span>
+            {p.template_type === "table" && (
+              <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Tabela
+              </span>
             )}
-          >
-            {templateName ?? "Processo avulso"}
-          </span>
+          </div>
           <h4 className="text-sm font-semibold truncate">{p.name}</h4>
           {p.client_name && (
             <p className="text-xs text-muted-foreground truncate">{p.client_name}</p>
