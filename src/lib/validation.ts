@@ -39,6 +39,18 @@ export const memberEmailSchema = z
 export const submitterNameSchema = text(1, 120, "Nome");
 export const publicTextAnswerSchema = optText(5000, "Resposta");
 
+export const tableColumnSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().transform(clean).pipe(z.string().min(1).max(60)),
+    type: z.enum(["text", "number", "currency", "checkbox", "select"]),
+    options: z.array(z.string().transform(clean).pipe(z.string().min(1).max(30))).max(50).optional(),
+  })
+  .refine(
+    (c) => c.type !== "select" || (c.options && c.options.length > 0),
+    { message: "Lista suspensa precisa de pelo menos uma opção" },
+  );
+
 export type SafeParseResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: string };
