@@ -80,6 +80,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { TaskReminderEditor } from "@/components/notifications/TaskReminderEditor";
+import { BellRing } from "lucide-react";
+
 
 export interface Task {
   id: string;
