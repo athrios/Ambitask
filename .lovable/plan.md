@@ -1,152 +1,140 @@
-# Plano — Templates de Processo com tipo Tabela
+## Evolução do Template Tabela — Tipos de coluna
 
-Adicionar suporte a **dois tipos** de modelo de processo: `tasks` (atual, intocado) e `table` (novo, planilha simples). Implementação incremental, sem quebrar o que já existe.
+Estender o template Tabela existente para suportar 5 tipos de coluna: **Texto, Número, Real (moeda), Checkbox e Lista suspensa**. Sem migração de banco (o JSONB já comporta os novos campos) e sem quebrar templates/processos já criados.
 
 ---
 
-## 1. Banco de dados (1 migração)
+### 1. Modelo de dados (sem migração)
 
-Manter tudo simples com JSONB. Sem tabelas novas.
+`process_templates.table_schema` e `processes.table_data` já são JSONB livres. Estendemos o tipo `TableColumn` em `src/lib/sheetFormula.ts`:
 
-```sql
-ALTER TABLE process_templates
-  ADD COLUMN template_type text NOT NULL DEFAULT 'tasks',
-  ADD COLUMN table_schema jsonb NOT NULL DEFAULT '{"columns":[],"rows":[]}'::jsonb;
-
-ALTER TABLE processes
-  ADD COLUMN template_type text NOT NULL DEFAULT 'tasks',
-  ADD COLUMN table_data jsonb NOT NULL DEFAULT '{"columns":[],"rows":[]}'::jsonb;
-
--- Validação
-CREATE OR REPLACE FUNCTION validate_template_type() RETURNS trigger AS $$
-BEGIN
-  IF NEW.template_type NOT IN ('tasks','table') THEN
-    RAISE EXCEPTION 'invalid template_type: %', NEW.template_type;
-  END IF;
-  RETURN NEW;
-END $$ LANGUAGE plpgsql SET search_path=public;
-
-CREATE TRIGGER process_templates_type BEFORE INSERT OR UPDATE ON process_templates
-  FOR EACH ROW EXECUTE FUNCTION validate_template_type();
-CREATE TRIGGER processes_type BEFORE INSERT OR UPDATE ON processes
-  FOR EACH ROW EXECUTE FUNCTION validate_template_type();
-```
-
-Modelos e processos antigos ficam automaticamente com `template_type = 'tasks'` pelo `DEFAULT`. RLS e `workspace_id` continuam valendo sem mudança (as colunas novas estão nas mesmas tabelas).
-
-**Formato do JSON da tabela:**
-```json
-{
-  "columns": [
-    { "id": "A", "label": "Descrição", "kind": "text"  },
-    { "id": "B", "label": "Valor",     "kind": "number"},
-    { "id": "C", "label": "Observação","kind": "text"  }
-  ],
-  "rows": [
-    { "id": "r1", "cells": { "A": "Honorários", "B": "500", "C": "Pago" } },
-    { "id": "r2", "cells": { "A": "Total", "B": "=SOMA(B1:B1)", "C": "" } }
-  ]
+```ts
+type ColumnType = "text" | "number" | "currency" | "checkbox" | "select";
+interface TableColumn {
+  id: string;
+  label: string;
+  type: ColumnType;     // novo — substitui o atual `kind`
+  options?: string[];   // só para "select"
+  kind?: "text" | "number"; // mantido como legacy para retrocompat
 }
 ```
-Referências de fórmula usam **letra da coluna + índice 1-based da linha** (independente do `id` interno).
+
+Migração automática em runtime (sem tocar no banco):
+- Ao ler um template/processo, normalizar colunas: se `type` ausente, derivar de `kind` (`number` → `number`, resto → `text`). Templates antigos continuam funcionando.
+
+Células permanecem como **string** no JSON (chave = `col.id`):
+- `text`: string livre
+- `number`: string numérica (ou fórmula `=...`)
+- `currency`: string numérica em **valor cru** (ex.: `"1250.5"`) — a formatação `R$ 1.250,50` é só de exibição
+- `checkbox`: `"true"` | `"false"` | `""`
+- `select`: uma das `options` ou `""`
+
+Vantagem: não quebra `buildCellMap`, fórmulas e dados de tabelas Tabela já criadas.
 
 ---
 
-## 2. Engine de fórmulas (`src/lib/sheetFormula.ts`)
+### 2. Engine de fórmulas (`src/lib/sheetFormula.ts`)
 
-Sem `eval`. Parser próprio mínimo e seguro:
+Pequenos ajustes:
+- `numericFromRaw` passa a aceitar `"true"/"false"` → `1/0` (futuro), mas por ora só **number** e **currency** participam de cálculo.
+- No `resolve` de refs, considerar o **tipo da coluna** referenciada via novo parâmetro opcional `columnTypeByRef`:
+  - `text` / `select` → 0
+  - `checkbox` → 0 (descartado conforme regra)
+  - `number` / `currency` → parse numérico normal
+- Assinatura: `evaluateCell(raw, cells, evaluating?, selfRef?, columnTypeByRef?)`. Default mantém comportamento atual (compat com testes existentes).
+- `buildCellMap` ganha um companion `buildColumnTypeMap(data)` para mapear `A`, `B`, … → tipo.
 
-- Detecta `=` no início da célula.
-- Tokens permitidos: números, refs `[A-Z]+\d+`, ranges `REF:REF`, operadores `+ - * /`, parênteses, funções `SOMA|SUM|MEDIA|AVERAGE`.
-- Avaliação por shunting-yard → RPN.
-- Refs vazias = 0; texto em célula referenciada num cálculo numérico = 0.
-- Detecção de ciclo via set de células em avaliação → retorna `#CICLO`.
-- Erros retornam `#ERRO` (mostrado discreto na célula) com tooltip da mensagem.
-- Recalcula tudo a cada edição (tabelas pequenas; barato).
-
-Tests: `src/test/sheetFormula.test.ts` cobrindo +, -, *, /, SOMA/SUM, MEDIA/AVERAGE, ref vazia, ciclo, fórmula inválida.
-
----
-
-## 3. Frontend — modelo
-
-**`ProcessesPanel.tsx`** (diálogo Criar/Editar modelo):
-- Adicionar `<Select>` "Tipo de modelo" com opções `Tarefas` / `Tabela`.
-- Se `tasks`: UI atual (etapas).
-- Se `table`: renderizar `<TableBuilder />` (novo componente) operando sobre `table_schema`.
-
-**Novo `src/components/processes/TableBuilder.tsx`:**
-- Adicionar/remover/renomear coluna (label + kind text|number).
-- Adicionar/remover linha.
-- Editar células (inputs em linha, mesmo visual leve).
-- Preview de fórmulas usando o engine.
-- Validação (zod): máx 50 colunas, máx 500 linhas, label ≤ 60 chars, célula ≤ 1000 chars.
+Testes novos em `src/test/sheetFormula.test.ts`:
+- Soma ignora célula `text` e `select`.
+- Coluna `currency` soma corretamente valores crus.
+- Checkbox não entra em soma.
 
 ---
 
-## 4. Frontend — criação de processo
+### 3. Editor de coluna (`SheetEditor.tsx`)
 
-Ao criar processo a partir de um modelo:
-- Se `template_type = 'tasks'`: fluxo atual (cria `process_steps` a partir dos `process_template_steps`).
-- Se `table'`: copiar `template.table_schema` para `processes.table_data` (deep clone), não criar steps.
+Cabeçalho de cada coluna passa a ter um botão de **configurar** (ícone `Settings2`) abrindo um `Popover`:
 
----
+- Campo "Nome" (label).
+- `Select` "Tipo" com as 5 opções.
+- Se tipo = `select`: lista editável de opções (input + adicionar/remover; mínimo 1).
+- Validação: label ≤ 60 chars; opções ≤ 30 chars; máx 50 opções.
 
-## 5. Frontend — detalhe do processo
+Ao mudar o tipo, **manter os valores existentes** (não apagar), apenas a renderização da célula muda. Mudança para `select` sem `options` exige preencher pelo menos uma opção antes de aceitar.
 
-Reaproveitar o drawer atual. Switch por `template_type`:
-
-- `tasks` → componente atual (etapas).
-- `table` → novo `<ProcessTableView />`:
-  - Cabeçalho: nome do processo, nome do modelo, `<StatusPill>` editável, botões **Salvar**, **Adicionar linha**, **Adicionar coluna**.
-  - Grid: cabeçalho de colunas + linhas numeradas (1, 2, 3…) + células editáveis. Células de fórmula mostram valor calculado; ao focar, mostra a fórmula crua.
-  - Visual: bordas suaves (`border-border`), `bg-card`, células alinhadas, sem peso visual de formulário (inspirado em Notion/Sheets).
-  - Salvar = `UPDATE processes SET table_data = ...`.
-
-**Status automático:**
-- Criação: `nao_iniciado` (default já existente).
-- Primeira edição salva com células preenchidas: passa a `em_andamento` (se ainda estava `nao_iniciado`).
-- Usuário pode marcar `concluido` ou `cancelado` manualmente pelo StatusPill.
-
-**Card do processo:** adicionar badge pequena "Tabela" quando `template_type='table'`. Mantém cor do modelo.
+Remoção do input "kind" inline atual no header — substituído pelo popover.
 
 ---
 
-## 6. Permissões / Ambientes
+### 4. Renderização das células
 
-Sem mudança de regra. As colunas novas ficam nas tabelas `process_templates` e `processes` que já têm RLS por `workspace_id` + `has_workspace_permission('processos', ...)`. O autofill de `workspace_id` continua funcionando.
+Refatorar `CellInput` / `EditableCell` em `SheetEditor.tsx` em um switch por `column.type`:
 
-`GlobalSearch` e listagens já filtram por workspace — sem alteração.
+| Tipo       | Edição                                                    | Exibição                          |
+|------------|-----------------------------------------------------------|-----------------------------------|
+| `text`     | `<input>` text                                            | string crua, alinhamento esquerdo |
+| `number`   | `<input inputMode="decimal">` com filtro; fórmula `=` permitida | número formatado, alinhado à direita |
+| `currency` | `<input inputMode="decimal">` aceita `1234,56` ou `1234.56`; ao blur, formata para `R$ 1.250,50`; em foco mostra valor cru editável | `R$ 1.250,50`, alinhado à direita |
+| `checkbox` | `<Checkbox>` centralizado, toggle direto                  | mesmo (checked/uncheck)           |
+| `select`   | `<Select>` compacto com `column.options`                  | label da opção                    |
+
+Helpers em `src/lib/sheetFormula.ts` (ou novo `src/lib/cellFormat.ts`):
+- `parseCurrencyInput(str): number | null`
+- `formatCurrencyBRL(n): string` (Intl.NumberFormat `pt-BR`, `style: 'currency'`)
+- `parseNumberInput(str): number | null`
+
+Fórmulas (`=...`) continuam permitidas apenas em `number` e `currency`. Para `text/select/checkbox`, ignoramos o `=` inicial (tratado como literal).
 
 ---
 
-## 7. Arquivos
+### 5. Criação de processo a partir do template
 
-**Migração**
-- `supabase/migrations/<ts>_process_template_types.sql`
+Já implementado via deep-clone de `table_schema` → `table_data`. Garantir que o clone inclua `type` e `options` (é só `JSON.parse(JSON.stringify(...))`, então já vale). Adicionar test/sanity de que mexer no processo não muda o template.
 
-**Criar**
-- `src/lib/sheetFormula.ts` (parser + avaliador + helpers de letra→índice)
-- `src/components/processes/TableBuilder.tsx` (editor de schema no modelo)
-- `src/components/processes/ProcessTableView.tsx` (tabela no processo)
-- `src/test/sheetFormula.test.ts`
+---
+
+### 6. Validação (`src/lib/validation.ts`)
+
+Adicionar `zod` schema para coluna:
+
+```ts
+const columnSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().trim().min(1).max(60),
+  type: z.enum(["text","number","currency","checkbox","select"]),
+  options: z.array(z.string().trim().min(1).max(30)).max(50).optional(),
+}).refine(c => c.type !== "select" || (c.options && c.options.length > 0),
+  { message: "Lista suspensa precisa de pelo menos 1 opção" });
+```
+
+Validar no salvar do template e no salvar do processo.
+
+---
+
+### 7. Permissões / Workspace
+
+Sem mudança. Tudo persiste em `process_templates`/`processes` que já têm RLS por `workspace_id` + `has_workspace_permission('processos', ...)`.
+
+---
+
+### 8. Arquivos
 
 **Editar**
-- `src/components/processes/ProcessesPanel.tsx`
-  - Tipos `Template` e `Process` ganham `template_type` e payload de tabela.
-  - Diálogo de modelo com seletor de tipo + render condicional.
-  - Criação de processo: branch tasks vs table.
-  - Drawer/detalhe: branch tasks vs table.
-  - Card: badge de tipo.
-- `src/lib/validation.ts` — schemas `tableColumnSchema`, `tableCellSchema`.
-- `src/integrations/supabase/types.ts` — atualizado automaticamente pela migração.
+- `src/lib/sheetFormula.ts` — novo `ColumnType`, helpers de formato, `evaluateCell` consciente de tipo, `buildColumnTypeMap`. Manter exports atuais (compat).
+- `src/components/processes/SheetEditor.tsx` — popover de configuração de coluna, renderização por tipo, normalização legacy ao receber `value`.
+- `src/components/processes/ProcessesPanel.tsx` — passar `columnTypeMap` ao avaliar fórmulas; nada além disso.
+- `src/lib/validation.ts` — schema de coluna + opções.
+- `src/test/sheetFormula.test.ts` — casos novos (currency, select/text ignorados em SOMA).
+
+**Sem migração de banco.** O JSONB existente comporta os campos novos; templates antigos são normalizados ao carregar.
 
 ---
 
-## 8. Critérios de aceite
+### 9. Critérios de aceite
 
-1. Modelo Tarefas existente continua funcionando idêntico ao atual.
-2. Criar modelo Tabela "Apuração mensal" com colunas Descrição/Valor/Observação, linhas, fórmula `=SOMA(B1:B3)` → salva e recalcula.
-3. Criar processo a partir desse modelo → tabela independente; editar processo não altera o modelo.
-4. Trocar de workspace esconde modelos e processos do outro ambiente.
-5. Permissões de Processos (view/create/edit/delete) aplicam-se ao novo tipo.
+1. Templates Tabela antigos abrem sem erro e suas colunas viram `text`/`number` automaticamente.
+2. No editor, configurar uma coluna como cada um dos 5 tipos funciona; opções de `select` são editáveis.
+3. Linha nova respeita o tipo (checkbox aparece como checkbox, currency formata em R$ ao sair do campo, etc.).
+4. `=SOMA(C1:C5)` numa coluna `currency` soma corretamente; numa coluna `text` retorna 0.
+5. Criar processo a partir do template preserva tipos e opções; editar processo não muda template.
+6. RLS / workspace inalterados — sem regressão de isolamento.
