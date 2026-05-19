@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { TEMPLATE_COLORS, type TemplateColor } from "@/components/processes/templateColors";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { workspaceNameSchema } from "@/lib/validation";
 
 interface Props {
   open: boolean;
