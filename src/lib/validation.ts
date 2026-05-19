@@ -39,10 +39,12 @@ export const memberEmailSchema = z
 export const submitterNameSchema = text(1, 120, "Nome");
 export const publicTextAnswerSchema = optText(5000, "Resposta");
 
-export const safeParse = <T,>(schema: z.ZodType<T>, value: unknown):
+export type SafeParseResult<T> =
   | { ok: true; value: T }
-  | { ok: false; error: string } => {
+  | { ok: false; error: string };
+
+export function safeParse<T>(schema: z.ZodType<T>, value: unknown): SafeParseResult<T> {
   const r = schema.safeParse(value);
   if (r.success) return { ok: true, value: r.data };
   return { ok: false, error: r.error.issues[0]?.message ?? "Valor inválido" };
-};
+}
