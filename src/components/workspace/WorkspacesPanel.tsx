@@ -191,7 +191,7 @@ const WorkspaceDetail = ({
           <MembersTab workspaceId={workspace.id} ownerId={workspace.owner_id} />
         </TabsContent>
         <TabsContent value="invites">
-          <InvitesTab workspaceId={workspace.id} />
+          <InvitesTab workspaceId={workspace.id} workspaceName={workspace.name} />
         </TabsContent>
       </Tabs>
     </div>
@@ -311,10 +311,11 @@ const MembersTab = ({ workspaceId, ownerId }: { workspaceId: string; ownerId: st
   );
 };
 
-const InvitesTab = ({ workspaceId }: { workspaceId: string }) => {
+const InvitesTab = ({ workspaceId, workspaceName }: { workspaceId: string; workspaceName: string }) => {
   const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [sending, setSending] = useState(false);
 
   const load = async () => {
     const { data } = await supabase
@@ -329,21 +330,51 @@ const InvitesTab = ({ workspaceId }: { workspaceId: string }) => {
   const create = async () => {
     const e = email.trim().toLowerCase();
     if (!e || !user) return toast.error("Informe um e-mail");
-    const { error } = await supabase.from("workspace_invitations").insert({
-      workspace_id: workspaceId,
-      email: e,
-      invited_by: user.id,
-      permissions: {},
+    setSending(true);
+    const { data: inserted, error } = await supabase
+      .from("workspace_invitations")
+      .insert({
+        workspace_id: workspaceId,
+        email: e,
+        invited_by: user.id,
+        permissions: {},
+      })
+      .select("id")
+      .single();
+    if (error || !inserted) {
+      setSending(false);
+      return toast.error(error?.message ?? "Erro ao criar convite");
+    }
+
+    const inviterName =
+      (user.user_metadata?.full_name as string | undefined) ||
+      (user.user_metadata?.name as string | undefined) ||
+      user.email ||
+      "Alguém";
+    const acceptUrl = `${window.location.origin}/convite/${inserted.id}`;
+
+    const { error: mailError } = await supabase.functions.invoke("send-transactional-email", {
+      body: {
+        templateName: "workspace-invite",
+        recipientEmail: e,
+        idempotencyKey: `workspace-invite-${inserted.id}`,
+        templateData: { inviterName, workspaceName, acceptUrl },
+      },
     });
-    if (error) return toast.error(error.message);
+
+    setSending(false);
     setEmail("");
-    toast.success("Convite registrado");
+    if (mailError) {
+      toast.warning("Convite criado, mas o e-mail falhou. Você pode compartilhar o link manualmente.");
+    } else {
+      toast.success("Convite enviado por e-mail");
+    }
     load();
   };
 
-  const copyId = (id: string) => {
-    navigator.clipboard.writeText(id);
-    toast.success("Token copiado");
+  const copyLink = (id: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/convite/${id}`);
+    toast.success("Link copiado");
   };
 
   const remove = async (id: string) => {
@@ -360,13 +391,14 @@ const InvitesTab = ({ workspaceId }: { workspaceId: string }) => {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@empresa.com"
+            disabled={sending}
           />
-          <Button size="sm" type="submit">
-            <Plus className="h-4 w-4" /> Convidar
+          <Button size="sm" type="submit" disabled={sending}>
+            <Plus className="h-4 w-4" /> {sending ? "Enviando…" : "Convidar"}
           </Button>
         </form>
         <p className="text-[11px] text-muted-foreground mt-2">
-          O envio de e-mail será habilitado em breve. Por enquanto, o convite fica registrado e você pode compartilhar o token manualmente.
+          Um e-mail com o link de aceitação será enviado para o endereço informado.
         </p>
       </div>
       <div className="rounded-xl border bg-card divide-y">
