@@ -438,7 +438,18 @@ const InvitesTab = ({ workspaceId, workspaceName }: { workspaceId: string; works
                 {new Date(i.created_at).toLocaleDateString("pt-BR")}
               </p>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => copyLink(i.id)}>
+            {!i.accepted_at && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => resend(i)}
+                disabled={resendingId === i.id}
+                title="Reenviar convite"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => copyLink(i.id)} title="Copiar link">
               <Copy className="h-3.5 w-3.5" />
             </Button>
             <Button size="sm" variant="ghost" onClick={() => remove(i.id)} className="text-destructive">
