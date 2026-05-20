@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Plus, Trash2, Copy, Send } from "lucide-react";
 import { CreateWorkspaceDialog } from "./CreateWorkspaceDialog";
+import { buildAppUrl } from "@/lib/appUrl";
 
 type Member = { id: string; user_id: string; role: string };
 type Perm = {
@@ -351,7 +352,7 @@ const InvitesTab = ({ workspaceId, workspaceName }: { workspaceId: string; works
       (user.user_metadata?.name as string | undefined) ||
       user.email ||
       "Alguém";
-    const acceptUrl = `${window.location.origin}/convite/${inserted.id}`;
+    const acceptUrl = buildAppUrl(`/convite/${inserted.id}`);
 
     const { error: mailError } = await supabase.functions.invoke("send-transactional-email", {
       body: {
@@ -382,7 +383,7 @@ const InvitesTab = ({ workspaceId, workspaceName }: { workspaceId: string; works
       (user.user_metadata?.name as string | undefined) ||
       user.email ||
       "Alguém";
-    const acceptUrl = `${window.location.origin}/convite/${invite.id}`;
+    const acceptUrl = buildAppUrl(`/convite/${invite.id}`);
     const { error: mailError } = await supabase.functions.invoke("send-transactional-email", {
       body: {
         templateName: "workspace-invite",
@@ -397,7 +398,7 @@ const InvitesTab = ({ workspaceId, workspaceName }: { workspaceId: string; works
   };
 
   const copyLink = (id: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/convite/${id}`);
+    navigator.clipboard.writeText(buildAppUrl(`/convite/${id}`));
     toast.success("Link copiado");
   };
 
