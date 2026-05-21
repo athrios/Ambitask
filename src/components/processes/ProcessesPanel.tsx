@@ -323,6 +323,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
                 templateColor={asColor(tpl?.color)}
                 onOpen={() => setOpenProc(p)}
                 onRemove={() => removeProcess(p.id)}
+                onChangeStepStatus={(stepId, next) => changeStepStatusFromCard(p.id, stepId, next)}
               />
             );
           })}
