@@ -560,11 +560,52 @@ const ProcessCard = ({
                 <ChevronRight className="h-3 w-3 shrink-0" />
                 <span className="shrink-0">Etapa atual:</span>
                 <span className="truncate flex-1">{current.title}</span>
-                <StatusPill domain="process_step" value={current.status} size="xs" className="shrink-0" />
+                {onChangeStepStatus ? (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="shrink-0"
+                  >
+                    <Select
+                      value={CARD_STEP_STATUSES.some((o) => o.value === current.status) ? current.status : "__other__"}
+                      onValueChange={(v) => {
+                        if (v === "__other__") return;
+                        onChangeStepStatus(current.id, v);
+                      }}
+                    >
+                      <SelectTrigger
+                        className="h-6 px-2 py-0 text-[11px] gap-1 border-muted-foreground/20 hover:border-foreground/40 transition w-auto min-w-[110px]"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CARD_STEP_STATUSES.map((o) => (
+                          <SelectItem key={o.value} value={o.value} className="text-xs">
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                        {!CARD_STEP_STATUSES.some((o) => o.value === current.status) && (
+                          <SelectItem value="__other__" className="text-xs" disabled>
+                            {current.status}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <StatusPill domain="process_step" value={current.status} size="xs" className="shrink-0" />
+                )}
               </div>
             )}
             {currentNote && (
-              <div className="rounded-md bg-muted/40 px-2 py-1.5">
+              <div
+                className="rounded-md bg-muted/40 px-2 py-1.5 cursor-text select-text"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Observação</p>
                 <p className="text-xs text-foreground/80 line-clamp-2 break-words">{currentNote}</p>
               </div>
@@ -577,7 +618,7 @@ const ProcessCard = ({
           </p>
         )}
         {p.due_date && (
-          <p className="text-[11px] text-muted-foreground">Prazo: {p.due_date}</p>
+          <p className="text-[11px] text-muted-foreground">Prazo: {fmtDate(p.due_date)}</p>
         )}
       </div>
     </div>
