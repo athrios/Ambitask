@@ -232,6 +232,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
           stepsByProc={stepsByProc}
           templates={templates}
           onOpen={setOpenProc}
+          onRemove={removeProcess}
         />
       ) : view === "list" ? (
         <ListView
