@@ -1281,13 +1281,11 @@ const ProcessDetail = ({
 };
 
 const ResolvedStepRow = ({
-  s, index, draft, onDraftChange, onSaveObservation,
+  s, index, onSaveObservation,
 }: {
   s: Step;
   index: number;
-  draft: string;
-  onDraftChange: (v: string) => void;
-  onSaveObservation: () => void;
+  onSaveObservation: (v: string) => Promise<void>;
 }) => {
   const isDismissed = s.status === "pulado";
   return (
@@ -1322,16 +1320,14 @@ const ResolvedStepRow = ({
           <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground">
             Editar observação
           </summary>
-          <div className="mt-2 space-y-1">
-            <Textarea
-              value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
-              className="min-h-[56px] text-xs"
+          <div className="mt-2">
+            <NoteField
+              value={s.notes ?? ""}
+              onSave={onSaveObservation}
               placeholder="Observação desta etapa…"
+              rows={3}
+              className="min-h-[56px] text-xs"
             />
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onSaveObservation}>
-              Salvar observação
-            </Button>
           </div>
         </details>
       </div>
