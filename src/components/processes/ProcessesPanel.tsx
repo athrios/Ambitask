@@ -1549,9 +1549,6 @@ const CurrentStepCard = ({
       </div>
 
       <div className="flex flex-wrap gap-2 pt-1 border-t">
-        <Button size="sm" onClick={onComplete} disabled={disabled}>
-          <Check className="h-3.5 w-3.5" /> Marcar como concluída
-        </Button>
         <Button size="sm" variant="outline" onClick={onDismiss} disabled={disabled}>
           <SkipForward className="h-3.5 w-3.5" /> Dispensar etapa
         </Button>
