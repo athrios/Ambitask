@@ -33,6 +33,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+const fmtDate = (iso?: string | null) => {
+  if (!iso) return "";
+  try {
+    return format(parseISO(iso), "dd-MM-yy");
+  } catch {
+    return iso;
+  }
+};
 import {
   TEMPLATE_COLORS,
   asColor,
