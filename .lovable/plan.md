@@ -1,38 +1,33 @@
-## Objetivo
-No Cronograma, itens importados de uma tarefa ficam **vinculados de verdade**: o título não pode ser editado ali (só em Tarefas) e o status sincroniza nos dois sentidos.
+## Problema
+No Cronograma, ao importar uma tarefa em uma linha placeholder, a linha seguinte aparece preenchida com o mesmo título da tarefa importada.
 
-## Mudanças
+## Causa
+Em `SchedulePanel.tsx`, os placeholders são renderizados em loop com `key={`p-${i}`}`. Quando uma tarefa é importada:
 
-### 1. Banco — sincronização bidirecional de status (migration)
-Criar trigger em `public.tasks` (AFTER UPDATE) que, quando `status` ou `done` mudarem, atualiza todos os `schedule_items` com `task_id = NEW.id`:
-- Mapeia `task.status` → `schedule.status` (`pendente`, `fazendo`, `aguardando`, `feita`, `cancelado` são compatíveis).
-- Também propaga mudança de `title` para manter a coluna espelhada (fallback caso o UI leia do campo local).
+1. `onPick` no `PlaceholderRow` chama `setTitle(task.title)` e em seguida `commit(...)`, que insere a tarefa no banco.
+2. Após o `load()`, há um item real a mais e um placeholder a menos — todos os placeholders deslizam uma posição "para cima".
+3. Como a `key` é apenas o índice (`p-0`, `p-1`, ...), o React reaproveita a mesma instância de `PlaceholderRow` para o próximo índice, mantendo o estado local `title` com o valor da tarefa recém-importada.
 
-O caminho Cronograma → Tarefa já existe no front (`updateItem` já faz update em `tasks` quando `task_id` está setado); estendê-lo para enviar **todos** os status (hoje só envia `done` + `status`, mas ignora alguns casos — revisar para mandar sempre o status novo, mapeando `pulado` apenas no schedule sem tocar na tarefa).
+Resultado: o placeholder seguinte aparece visualmente com o título da tarefa importada (ainda que não esteja salvo).
 
-### 2. `src/components/SchedulePanel.tsx`
-- **Título não editável** quando `task_id != null`:
-  - Substituir o `<Input>` de título por um texto/`<div>` somente-leitura (com a mesma tipografia) quando o item está vinculado.
-  - Manter o ícone de "desvincular" (Link2) — só após desvincular o título volta a ser editável.
-- **Espelhar o título da tarefa**: ao renderizar a lista, fazer join/lookup pelo `task_id` em uma lista de tarefas já carregada (`importableTasks` precisa virar uma lista completa, não só "importáveis"; renomear para `linkedTasksMap` ou buscar separadamente todas as tarefas do workspace usadas como referência) e exibir `task.title` quando existir, caindo para `item.title` se a tarefa foi excluída.
-- **Realtime opcional** (recomendado): assinar mudanças em `tasks` do workspace via `supabase.channel(...).on('postgres_changes', ...)` para refletir status/título no Cronograma sem precisar recarregar a página.
+## Correção (em `src/components/SchedulePanel.tsx`)
 
-### 3. `src/components/TasksPanel.tsx`
-- Nenhuma mudança funcional obrigatória — o trigger do banco cuida da sincronização. Opcionalmente, ao mudar status localmente, atualizar também o cache do Cronograma se ele estiver montado (não necessário se usarmos realtime).
+Limpar o estado local `title` do `PlaceholderRow` logo após o commit da importação, para que a instância reaproveitada volte ao estado vazio.
 
-## Detalhes técnicos
-- Migration nova com:
-  ```sql
-  CREATE OR REPLACE FUNCTION public.sync_task_to_schedule() RETURNS trigger ...
-  -- UPDATE schedule_items SET status = NEW.status, title = NEW.title
-  -- WHERE task_id = NEW.id;
-  CREATE TRIGGER trg_sync_task_to_schedule
-    AFTER UPDATE OF status, done, title ON public.tasks
-    FOR EACH ROW EXECUTE FUNCTION public.sync_task_to_schedule();
-  ```
-- Habilitar realtime em `tasks` (`ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;`) se ainda não estiver.
-- No `ScheduleRow`, condicional: `task_id ? <ReadOnlyTitle/> : <EditableInput/>`.
+No handler `onPick` do `ImportButton` dentro de `PlaceholderRow`:
+
+```tsx
+onPick={(task) => {
+  commit(task.title, task.id);
+  setTitle("");           // limpa o estado local
+  setDuration(initialDuration);
+}}
+```
+
+Não precisamos mais do `setTitle(task.title)` antes do commit — `commit` já recebe o título diretamente.
+
+Opcionalmente, também resetar quando o usuário digita e dá blur (já funciona via `load()` recriando a lista, mas o estado local persistia só no caminho de importação).
 
 ## Fora de escopo
-- Não mexer em Processos, Formulários, Solicitações.
-- Não alterar lógica de criação de itens não-vinculados (continuam editáveis).
+- Não alterar lógica de cascata de horários, status, vínculo de tarefas, nem realtime.
+- Não mexer em linhas já materializadas (`ScheduleRow`).

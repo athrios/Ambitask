@@ -432,8 +432,9 @@ const PlaceholderRow = ({
       <ImportButton
         tasks={tasks}
         onPick={(task) => {
-          setTitle(task.title);
           commit(task.title, task.id);
+          setTitle("");
+          setDuration(initialDuration);
         }}
       />
       <Input
