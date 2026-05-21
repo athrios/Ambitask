@@ -1516,7 +1516,7 @@ const CurrentStepCard = ({
                 )}
               >
                 {overdue && <AlertCircle className="h-3 w-3" />}
-                Prazo: {s.due_date}
+                Prazo: {fmtDate(s.due_date)}
               </span>
             )}
             {showStartHint && (
