@@ -252,6 +252,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
                 templateName={tpl?.name ?? null}
                 templateColor={asColor(tpl?.color)}
                 onOpen={() => setOpenProc(p)}
+                onRemove={() => removeProcess(p.id)}
               />
             );
           })}
