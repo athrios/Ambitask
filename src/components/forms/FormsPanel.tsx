@@ -138,7 +138,7 @@ export const FormsPanel = ({ userId }: Props) => {
   };
 
   const copyLink = (slug: string) => {
-    const url = `${window.location.origin}/f/${slug}`;
+    const url = buildAppUrl(`/f/${slug}`);
     navigator.clipboard.writeText(url);
     toast.success("Link copiado");
   };
