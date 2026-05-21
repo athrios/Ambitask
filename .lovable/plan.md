@@ -1,22 +1,38 @@
-## Botão de exclusão nos cards de processo
+## Objetivo
+No Cronograma, itens importados de uma tarefa ficam **vinculados de verdade**: o título não pode ser editado ali (só em Tarefas) e o status sincroniza nos dois sentidos.
 
-Hoje a lista de processos tem um botão de excluir (ícone lixeira), mas as visualizações **Kanban** e **Grade** mostram cards sem esse botão — só dá pra excluir trocando de visão. A permissão já existe no banco (apenas owner/admin do ambiente consegue excluir), só falta o botão.
+## Mudanças
 
-### O que será feito
+### 1. Banco — sincronização bidirecional de status (migration)
+Criar trigger em `public.tasks` (AFTER UPDATE) que, quando `status` ou `done` mudarem, atualiza todos os `schedule_items` com `task_id = NEW.id`:
+- Mapeia `task.status` → `schedule.status` (`pendente`, `fazendo`, `aguardando`, `feita`, `cancelado` são compatíveis).
+- Também propaga mudança de `title` para manter a coluna espelhada (fallback caso o UI leia do campo local).
 
-- Adicionar um botão de lixeira no canto superior direito do `ProcessCard` (usado em Kanban e Grade).
-- O botão fica oculto por padrão e aparece ao passar o mouse no card (mesmo padrão da lista).
-- Ao clicar, pede confirmação ("Excluir processo?") e chama a mesma função `removeProcess` já existente, que:
-  - apaga o processo no banco (RLS garante que só quem tem permissão de excluir consegue),
-  - registra no log de atividade,
-  - recarrega a tela.
-- Clicar no botão **não** abre o processo (stopPropagation).
+O caminho Cronograma → Tarefa já existe no front (`updateItem` já faz update em `tasks` quando `task_id` está setado); estendê-lo para enviar **todos** os status (hoje só envia `done` + `status`, mas ignora alguns casos — revisar para mandar sempre o status novo, mapeando `pulado` apenas no schedule sem tocar na tarefa).
 
-### Detalhes técnicos
+### 2. `src/components/SchedulePanel.tsx`
+- **Título não editável** quando `task_id != null`:
+  - Substituir o `<Input>` de título por um texto/`<div>` somente-leitura (com a mesma tipografia) quando o item está vinculado.
+  - Manter o ícone de "desvincular" (Link2) — só após desvincular o título volta a ser editável.
+- **Espelhar o título da tarefa**: ao renderizar a lista, fazer join/lookup pelo `task_id` em uma lista de tarefas já carregada (`importableTasks` precisa virar uma lista completa, não só "importáveis"; renomear para `linkedTasksMap` ou buscar separadamente todas as tarefas do workspace usadas como referência) e exibir `task.title` quando existir, caindo para `item.title` se a tarefa foi excluída.
+- **Realtime opcional** (recomendado): assinar mudanças em `tasks` do workspace via `supabase.channel(...).on('postgres_changes', ...)` para refletir status/título no Cronograma sem precisar recarregar a página.
 
-- Arquivo: `src/components/processes/ProcessesPanel.tsx`
-- `ProcessCard` ganha prop opcional `onRemove?: () => void`.
-- `KanbanView` e a grade (linhas ~244-258) passam `onRemove={() => removeProcess(p.id)}`.
-- Reutiliza o ícone `Trash2` já importado e as classes `opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive` para combinar com a lista.
+### 3. `src/components/TasksPanel.tsx`
+- Nenhuma mudança funcional obrigatória — o trigger do banco cuida da sincronização. Opcionalmente, ao mudar status localmente, atualizar também o cache do Cronograma se ele estiver montado (não necessário se usarmos realtime).
 
-Sem mudanças de banco, sem mudanças de permissão — só UI.
+## Detalhes técnicos
+- Migration nova com:
+  ```sql
+  CREATE OR REPLACE FUNCTION public.sync_task_to_schedule() RETURNS trigger ...
+  -- UPDATE schedule_items SET status = NEW.status, title = NEW.title
+  -- WHERE task_id = NEW.id;
+  CREATE TRIGGER trg_sync_task_to_schedule
+    AFTER UPDATE OF status, done, title ON public.tasks
+    FOR EACH ROW EXECUTE FUNCTION public.sync_task_to_schedule();
+  ```
+- Habilitar realtime em `tasks` (`ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;`) se ainda não estiver.
+- No `ScheduleRow`, condicional: `task_id ? <ReadOnlyTitle/> : <EditableInput/>`.
+
+## Fora de escopo
+- Não mexer em Processos, Formulários, Solicitações.
+- Não alterar lógica de criação de itens não-vinculados (continuam editáveis).
