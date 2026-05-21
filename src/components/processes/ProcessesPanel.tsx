@@ -232,6 +232,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
           stepsByProc={stepsByProc}
           templates={templates}
           onOpen={setOpenProc}
+          onRemove={removeProcess}
         />
       ) : view === "list" ? (
         <ListView
@@ -252,6 +253,7 @@ export const ProcessesPanel = ({ userId }: Props) => {
                 templateName={tpl?.name ?? null}
                 templateColor={asColor(tpl?.color)}
                 onOpen={() => setOpenProc(p)}
+                onRemove={() => removeProcess(p.id)}
               />
             );
           })}
@@ -391,12 +393,14 @@ const ProcessCard = ({
   templateName,
   templateColor = "gray",
   onOpen,
+  onRemove,
 }: {
   p: Process;
   steps: Step[];
   templateName?: string | null;
   templateColor?: TemplateColor;
   onOpen: () => void;
+  onRemove?: () => void;
 }) => {
   const done = steps.filter((s) => s.status === "feita" || s.status === "pulado").length;
   const total = steps.length;
@@ -415,7 +419,7 @@ const ProcessCard = ({
         }
       }}
       className={cn(
-        "rounded-xl border bg-card p-4 hover:shadow-sm transition group cursor-pointer text-left border-l-4",
+        "rounded-xl border bg-card p-4 hover:shadow-sm transition group cursor-pointer text-left border-l-4 relative",
         colorLeftBorder[templateColor],
       )}
     >
@@ -441,7 +445,22 @@ const ProcessCard = ({
             <p className="text-xs text-muted-foreground truncate">{p.client_name}</p>
           )}
         </div>
-        <StatusPill domain="process" value={p.status} size="xs" />
+        <div className="flex items-center gap-1 shrink-0">
+          <StatusPill domain="process" value={p.status} size="xs" />
+          {onRemove && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("Excluir processo?")) onRemove();
+              }}
+              className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+              aria-label="Excluir processo"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <div className="mt-3 space-y-2">
         {p.template_type !== "table" && (
@@ -524,11 +543,13 @@ const KanbanView = ({
   stepsByProc,
   templates,
   onOpen,
+  onRemove,
 }: {
   processes: Process[];
   stepsByProc: Record<string, Step[]>;
   templates: Template[];
   onOpen: (p: Process) => void;
+  onRemove: (id: string) => void;
 }) => (
   <div className="overflow-x-auto -mx-2 pb-2">
     <div className="flex gap-3 px-2 min-w-max">
@@ -551,6 +572,7 @@ const KanbanView = ({
                     templateName={tpl?.name ?? null}
                     templateColor={asColor(tpl?.color)}
                     onOpen={() => onOpen(p)}
+                    onRemove={() => onRemove(p.id)}
                   />
                 );
               })}
