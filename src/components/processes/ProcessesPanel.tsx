@@ -1337,14 +1337,12 @@ const ResolvedStepRow = ({
 };
 
 const CurrentStepCard = ({
-  s, index, draft, onDraftChange, onSaveObservation, onComplete, onDismiss, onRemove, disabled, showStartHint,
+  s, index, onSaveObservation, onComplete, onDismiss, onRemove, disabled, showStartHint,
   customStatuses, onChangeStatus, onAddCustomStatus,
 }: {
   s: Step;
   index: number;
-  draft: string;
-  onDraftChange: (v: string) => void;
-  onSaveObservation: () => void;
+  onSaveObservation: (v: string) => Promise<void>;
   onComplete: () => void;
   onDismiss: () => void;
   onRemove: () => void;
