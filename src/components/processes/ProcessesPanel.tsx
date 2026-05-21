@@ -939,8 +939,21 @@ const ProcessDetail = ({
   const [stepInput, setStepInput] = useState("");
   const [obsDraft, setObsDraft] = useState<Record<string, string>>({});
 
+  const [customStatuses, setCustomStatuses] = useState<CustomStepStatus[]>([]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    supabase
+      .from("process_step_custom_statuses")
+      .select("id,label,color")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => setCustomStatuses((data ?? []) as CustomStepStatus[]));
+  }, [workspaceId]);
+
+  const isReserved = (st: string) => ["pendente", "fazendo", "feita", "pulado"].includes(st);
   const resolved = steps.filter((s) => s.status === "feita" || s.status === "pulado");
-  const active = steps.find((s) => s.status === "fazendo");
+  const active = steps.find((s) => s.status !== "pendente" && s.status !== "feita" && s.status !== "pulado");
   const firstPending = steps.find((s) => s.status === "pendente");
   const currentStep = active ?? firstPending ?? null;
   const futureSteps = steps.filter(
