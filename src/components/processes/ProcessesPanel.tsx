@@ -22,6 +22,7 @@ import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Pl
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/shared/StatusPill";
+import { NoteField } from "@/components/shared/NoteField";
 import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PROCESS_STATUS, type ProcessStatus } from "@/lib/taskTokens";
@@ -1052,10 +1053,10 @@ const ProcessDetail = ({
     onChanged();
   };
 
-  const saveObservation = async (s: Step) => {
-    const v = obsDraft[s.id] ?? s.notes ?? "";
-    await supabase.from("process_steps").update({ notes: v }).eq("id", s.id);
-    toast.success("Observação salva");
+  const saveObservation = async (s: Step, valueOverride?: string) => {
+    const v = valueOverride ?? obsDraft[s.id] ?? s.notes ?? "";
+    const { error } = await supabase.from("process_steps").update({ notes: v }).eq("id", s.id);
+    if (error) throw new Error(error.message);
     onChanged();
   };
 
@@ -1168,9 +1169,10 @@ const ProcessDetail = ({
               key={s.id}
               s={s}
               index={steps.findIndex((x) => x.id === s.id)}
-              draft={obsDraft[s.id] ?? s.notes ?? ""}
-              onDraftChange={(v) => setObsDraft((p) => ({ ...p, [s.id]: v }))}
-              onSaveObservation={() => saveObservation(s)}
+              onSaveObservation={(v) => {
+                setObsDraft((p) => ({ ...p, [s.id]: v }));
+                return saveObservation(s, v);
+              }}
             />
           ))}
 
@@ -1179,9 +1181,10 @@ const ProcessDetail = ({
             <CurrentStepCard
               s={currentStep}
               index={steps.findIndex((x) => x.id === currentStep.id)}
-              draft={obsDraft[currentStep.id] ?? currentStep.notes ?? ""}
-              onDraftChange={(v) => setObsDraft((p) => ({ ...p, [currentStep.id]: v }))}
-              onSaveObservation={() => saveObservation(currentStep)}
+              onSaveObservation={(v) => {
+                setObsDraft((p) => ({ ...p, [currentStep.id]: v }));
+                return saveObservation(currentStep, v);
+              }}
               onComplete={() => completeStep(currentStep)}
               onDismiss={() => dismissStep(currentStep)}
               onRemove={() => removeStep(currentStep.id)}
@@ -1278,13 +1281,11 @@ const ProcessDetail = ({
 };
 
 const ResolvedStepRow = ({
-  s, index, draft, onDraftChange, onSaveObservation,
+  s, index, onSaveObservation,
 }: {
   s: Step;
   index: number;
-  draft: string;
-  onDraftChange: (v: string) => void;
-  onSaveObservation: () => void;
+  onSaveObservation: (v: string) => Promise<void>;
 }) => {
   const isDismissed = s.status === "pulado";
   return (
@@ -1319,16 +1320,14 @@ const ResolvedStepRow = ({
           <summary className="text-[11px] text-muted-foreground cursor-pointer hover:text-foreground">
             Editar observação
           </summary>
-          <div className="mt-2 space-y-1">
-            <Textarea
-              value={draft}
-              onChange={(e) => onDraftChange(e.target.value)}
-              className="min-h-[56px] text-xs"
+          <div className="mt-2">
+            <NoteField
+              value={s.notes ?? ""}
+              onSave={onSaveObservation}
               placeholder="Observação desta etapa…"
+              rows={3}
+              className="min-h-[56px] text-xs"
             />
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onSaveObservation}>
-              Salvar observação
-            </Button>
           </div>
         </details>
       </div>
@@ -1338,14 +1337,12 @@ const ResolvedStepRow = ({
 };
 
 const CurrentStepCard = ({
-  s, index, draft, onDraftChange, onSaveObservation, onComplete, onDismiss, onRemove, disabled, showStartHint,
+  s, index, onSaveObservation, onComplete, onDismiss, onRemove, disabled, showStartHint,
   customStatuses, onChangeStatus, onAddCustomStatus,
 }: {
   s: Step;
   index: number;
-  draft: string;
-  onDraftChange: (v: string) => void;
-  onSaveObservation: () => void;
+  onSaveObservation: (v: string) => Promise<void>;
   onComplete: () => void;
   onDismiss: () => void;
   onRemove: () => void;
@@ -1427,16 +1424,14 @@ const CurrentStepCard = ({
 
       <div>
         <label className="text-xs font-medium">Observação</label>
-        <Textarea
-          value={draft}
-          onChange={(e) => onDraftChange(e.target.value)}
-          placeholder="Anotações desta etapa…"
-          className="min-h-[70px] mt-1"
-        />
-        <div className="flex justify-end mt-1">
-          <Button size="sm" variant="ghost" onClick={onSaveObservation}>
-            Salvar observação
-          </Button>
+        <div className="mt-1">
+          <NoteField
+            value={s.notes ?? ""}
+            onSave={onSaveObservation}
+            placeholder="Anotações desta etapa…"
+            rows={3}
+            className="min-h-[70px]"
+          />
         </div>
       </div>
 
