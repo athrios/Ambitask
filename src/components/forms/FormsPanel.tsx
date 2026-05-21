@@ -26,6 +26,7 @@ import { logActivity } from "@/lib/activityLog";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { TEMPLATE_COLORS, colorPill, colorLeftBorder, asColor } from "@/components/processes/templateColors";
 import { cn } from "@/lib/utils";
+import { buildAppUrl } from "@/lib/appUrl";
 
 type FieldType =
   | "short_text"
