@@ -78,12 +78,18 @@ interface Step {
   process_id: string;
   position: number;
   title: string;
-  status: "pendente" | "fazendo" | "feita" | "pulado";
+  status: string;
   notes: string;
   due_date?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
   dismissed_at?: string | null;
+}
+
+interface CustomStepStatus {
+  id: string;
+  label: string;
+  color: string;
 }
 
 interface Props {
