@@ -513,6 +513,13 @@ const FormBuilder = ({
                     <Switch checked={f.required} onCheckedChange={(v) => updateField(f.id, { required: v })} />
                     <span>Resposta obrigatória</span>
                   </label>
+                  <Textarea
+                    defaultValue={f.description ?? ""}
+                    placeholder="Descrição / instruções (opcional) — aparece abaixo da pergunta no formulário público"
+                    className="text-xs min-h-[50px]"
+                    maxLength={500}
+                    onBlur={(e) => updateField(f.id, { description: e.target.value.trim() } as Partial<Field>)}
+                  />
                   {(f.field_type === "select" || f.field_type === "multi_select") && (
                     <Textarea
                       defaultValue={Array.isArray(f.options) ? (f.options as string[]).join("\n") : ""}
