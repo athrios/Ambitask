@@ -188,13 +188,22 @@ export const FormsPanel = ({ userId }: Props) => {
             return (
             <div key={f.id} className={cn("rounded-xl border-l-4 border bg-card p-4 group hover:shadow-sm transition", colorLeftBorder[c])}>
               <div className="flex items-start justify-between gap-2">
-                <button onClick={() => setEditing(f)} className="text-left flex-1 min-w-0">
-                  <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border mb-1.5", colorPill[c])}>
-                    {f.title}
-                  </span>
-                  {f.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{f.description}</p>
+                <button onClick={() => setEditing(f)} className="text-left flex-1 min-w-0 flex items-start gap-2">
+                  {f.logo_path && (
+                    <img
+                      src={supabase.storage.from("form-logos").getPublicUrl(f.logo_path).data.publicUrl}
+                      alt=""
+                      className="h-8 w-8 object-contain rounded shrink-0"
+                    />
                   )}
+                  <div className="min-w-0">
+                    <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border mb-1.5", colorPill[c])}>
+                      {f.title}
+                    </span>
+                    {f.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{f.description}</p>
+                    )}
+                  </div>
                 </button>
                 <button
                   onClick={() => remove(f.id)}
