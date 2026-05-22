@@ -49,6 +49,7 @@ interface Form {
   linked_process_template_id: string | null;
   logo_path: string | null;
   logo_alignment: "left" | "center" | "right";
+  submitter_name_label: string | null;
 }
 interface ProcessTemplate { id: string; name: string }
 
@@ -61,6 +62,7 @@ interface Field {
   required: boolean;
   options: string[] | unknown;
   description: string;
+  add_button_label: string | null;
 }
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -270,6 +272,7 @@ const FormBuilder = ({
   const { workspaceId } = useWorkspace();
   const [title, setTitle] = useState(form.title);
   const [desc, setDesc] = useState(form.description);
+  const [submitterNameLabel, setSubmitterNameLabel] = useState(form.submitter_name_label ?? "Seu nome");
   const [color, setColor] = useState(asColor(form.color));
   const [autoCreate, setAutoCreate] = useState(form.auto_create_process);
   const [linkedTpl, setLinkedTpl] = useState<string | null>(form.linked_process_template_id);
@@ -293,7 +296,8 @@ const FormBuilder = ({
   useEffect(() => { load(); }, [form.id]);
 
   const saveMeta = async () => {
-    await supabase.from("forms").update({ title, description: desc, color }).eq("id", form.id);
+    const label = submitterNameLabel.trim().slice(0, 60) || "Seu nome";
+    await supabase.from("forms").update({ title, description: desc, color, submitter_name_label: label }).eq("id", form.id);
   };
 
   const updateColor = async (c: ReturnType<typeof asColor>) => {
@@ -392,6 +396,17 @@ const FormBuilder = ({
           <div>
             <label className="text-xs font-medium">Descrição / Instruções</label>
             <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={saveMeta} className="min-h-[60px]" />
+          </div>
+          <div>
+            <label className="text-xs font-medium">Rótulo do campo "Seu nome"</label>
+            <Input
+              value={submitterNameLabel}
+              onChange={(e) => setSubmitterNameLabel(e.target.value)}
+              onBlur={saveMeta}
+              placeholder="Seu nome"
+              maxLength={60}
+            />
+            <p className="text-[11px] text-muted-foreground mt-0.5">Texto exibido acima do campo de identificação no formulário público.</p>
           </div>
           <div>
             <label className="text-xs font-medium block mb-1.5">Cor</label>
@@ -528,6 +543,15 @@ const FormBuilder = ({
                       onBlur={(e) => updateField(f.id, {
                         options: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) as never,
                       })}
+                    />
+                  )}
+                  {f.field_type === "partner_group" && (
+                    <Input
+                      defaultValue={f.add_button_label ?? ""}
+                      placeholder='Rótulo do botão (padrão: "Adicionar sócio")'
+                      className="text-xs h-8"
+                      maxLength={60}
+                      onBlur={(e) => updateField(f.id, { add_button_label: e.target.value.trim() || null } as Partial<Field>)}
                     />
                   )}
                 </div>

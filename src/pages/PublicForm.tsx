@@ -37,6 +37,7 @@ interface Form {
   is_published: boolean;
   logo_path: string | null;
   logo_alignment: "left" | "center" | "right" | null;
+  submitter_name_label: string | null;
 }
 interface Field {
   id: string;
@@ -46,6 +47,7 @@ interface Field {
   required: boolean;
   options: string[] | unknown;
   description: string | null;
+  add_button_label: string | null;
 }
 
 const PublicForm = () => {
@@ -64,14 +66,14 @@ const PublicForm = () => {
     (async () => {
       const { data } = await supabase
         .from("forms_public" as never)
-        .select("id,user_id,workspace_id,title,description,is_published,logo_path,logo_alignment")
+        .select("id,user_id,workspace_id,title,description,is_published,logo_path,logo_alignment,submitter_name_label")
         .eq("public_slug", slug)
         .maybeSingle();
       if (!data) { setLoading(false); return; }
       setForm(data as Form);
       const { data: fs } = await supabase
         .from("form_fields_public" as never)
-        .select("id,form_id,label,field_type,required,options,position,description")
+        .select("id,form_id,label,field_type,required,options,position,description,add_button_label")
         .eq("form_id", (data as Form).id)
         .order("position", { ascending: true });
       setFields((fs ?? []) as Field[]);
@@ -167,7 +169,7 @@ const PublicForm = () => {
         </header>
 
         <div>
-          <label className="text-xs font-medium">Seu nome</label>
+          <label className="text-xs font-medium">{form.submitter_name_label?.trim() || "Seu nome"}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
 
@@ -264,6 +266,7 @@ const PublicForm = () => {
                 <PartnerGroupField
                   value={(Array.isArray(v) ? v : []) as never}
                   onChange={(val) => set(val)}
+                  addButtonLabel={f.add_button_label?.trim() || undefined}
                 />
               )}
             </div>
