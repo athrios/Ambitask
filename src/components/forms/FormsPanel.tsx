@@ -207,6 +207,15 @@ export const FormsPanel = ({ userId }: Props) => {
                   <Switch checked={f.is_published} onCheckedChange={() => togglePub(f)} />
                 </div>
               </div>
+              {f.auto_create_process && f.linked_process_template_id && (
+                <div className="mt-2 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                  <Workflow className="h-3 w-3" />
+                  <span>Modelo vinculado:</span>
+                  <span className="font-medium text-foreground truncate">
+                    {templates.find((t) => t.id === f.linked_process_template_id)?.name ?? "—"}
+                  </span>
+                </div>
+              )}
               {f.is_published && (
                 <button
                   onClick={() => copyLink(f.public_slug)}
@@ -215,6 +224,7 @@ export const FormsPanel = ({ userId }: Props) => {
                   <Copy className="h-3 w-3" /> Copiar link público
                 </button>
               )}
+
             </div>
             );
           })}
