@@ -266,6 +266,7 @@ const PublicForm = () => {
                 <PartnerGroupField
                   value={(Array.isArray(v) ? v : []) as never}
                   onChange={(val) => set(val)}
+                  addButtonLabel={f.add_button_label?.trim() || undefined}
                 />
               )}
             </div>
