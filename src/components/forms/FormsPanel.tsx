@@ -47,6 +47,8 @@ interface Form {
   color: string;
   auto_create_process: boolean;
   linked_process_template_id: string | null;
+  logo_path: string | null;
+  logo_alignment: "left" | "center" | "right";
 }
 interface ProcessTemplate { id: string; name: string }
 
@@ -58,6 +60,7 @@ interface Field {
   field_type: FieldType;
   required: boolean;
   options: string[] | unknown;
+  description: string;
 }
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
