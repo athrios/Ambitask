@@ -1,79 +1,65 @@
-# Vínculo Formulário → Modelo de Processo
+# Descrição por pergunta + Logo no formulário
 
-Permitir que cada formulário tenha um modelo de processo associado e, quando uma resposta pública chegar, gerar automaticamente um processo derivado desse modelo, vinculado à resposta.
+Duas melhorias incrementais no módulo Formulários, sem quebrar dados existentes.
 
 ## 1. Migração de banco
 
-Adicionar em `forms`:
-- `auto_create_process boolean not null default false`
-- `linked_process_template_id uuid null` (sem FK declarada formal — alinhado ao padrão atual do projeto; validar no trigger)
+`form_fields`:
+- `description text not null default ''`
 
-Adicionar em `form_responses`:
-- `created_process_id uuid null`
-- índice único parcial: `create unique index form_responses_one_process_per_response on public.form_responses(id) where created_process_id is not null;` (garante 1 processo por resposta — combinado com a checagem do trigger evita duplicidade)
+`forms`:
+- `logo_path text null` (path no bucket de storage)
+- `logo_alignment text not null default 'center'` (valores: `left|center|right`)
 
-Atualizar a view `forms_public` para expor `auto_create_process` e `linked_process_template_id` (necessário só se a página pública decidir mostrar algo; pode ficar oculto, mas é inócuo expor um uuid).
+Trigger de validação em `forms` para garantir `logo_alignment in ('left','center','right')`.
 
-Função `public.handle_form_response_autoprocess()` (SECURITY DEFINER, search_path=public) acionada por trigger `AFTER INSERT ON form_responses`:
+Atualizar views públicas:
+- `form_fields_public`: expor `description`.
+- `forms_public`: expor `logo_path` e `logo_alignment`.
 
-1. Sair se `NEW.created_process_id IS NOT NULL`.
-2. Buscar `forms` por `NEW.form_id`. Se `auto_create_process=false` OU `linked_process_template_id IS NULL`, retornar.
-3. Validar que o template existe E pertence ao mesmo `workspace_id` do form. Se não, retornar silenciosamente (não bloquear o INSERT da resposta).
-4. Calcular nome do processo:
-   - Tentar extrair de `NEW.data` (jsonb) procurando chaves cujo label contenha (case-insensitive, sem acento) um de: `empresa`, `razao social`, `razão social`, `cliente`, `nome`, `email`, `e-mail`. Usar a primeira não-vazia.
-   - Fallback: `submitter_name` se não vazio.
-   - Fallback final: `to_char(now(), 'DD-MM-YY')` → `"{template.name} - Resposta de formulário - DD-MM-AA"`.
-   - Formato com nome: `"{template.name} - {nome encontrado}"`.
-5. Criar `processes` com `user_id = form.user_id`, `workspace_id = form.workspace_id`, `template_id`, `status='nao_iniciado'`, `template_type = tpl.template_type`, `table_data = tpl.table_schema` (se table) ou `'{"rows":[],"columns":[]}'`.
-6. Se `template_type='tasks'`: inserir `process_steps` a partir de `process_template_steps` (mesma lógica do `createProcess` no client — copia `title`, `position`, `status='pendente'`, `due_date` baseada em `due_offset_days` se >0 sobre `current_date`).
-7. `UPDATE form_responses SET created_process_id = <novo_id>, status='convertida_processo' WHERE id = NEW.id`.
-
-Como é SECURITY DEFINER, contorna RLS — exatamente o que precisamos para que o INSERT anônimo via página pública consiga criar o processo. Toda a validação de workspace é feita dentro da função, então não há vazamento entre workspaces.
+Storage:
+- Reusar bucket `form-uploads` (já existe, privado). Criar bucket público novo `form-logos` para servir logos via URL pública (mais simples que signed URLs no fluxo público anônimo).
+- Policies em `storage.objects` para `form-logos`:
+  - SELECT público (`bucket_id='form-logos'`).
+  - INSERT/UPDATE/DELETE somente autenticados, restrito a `auth.uid()::text = (storage.foldername(name))[1]` (estrutura: `{user_id}/{form_id}/{uuid}.ext`).
+- Limite de 5 MB e tipos `image/png`, `image/jpeg`, `image/webp` validados no client antes do upload. SVG bloqueado.
 
 ## 2. UI — `src/components/forms/FormsPanel.tsx`
 
-No editor de formulário (modal de edição):
-- Adicionar bloco "Automação":
-  - `<Switch>` "Criar processo automaticamente ao receber resposta" → atualiza `auto_create_process`.
-  - Se ativado, `<Select>` "Modelo de processo vinculado" listando `process_templates` do workspace ativo (carregar uma vez por modal). Texto de ajuda abaixo: *"Quando este formulário for respondido, um processo será criado automaticamente usando o modelo selecionado."*
-  - Persistir via `update` em `forms` (debounced ou no blur, padrão atual do arquivo).
-- Estender a interface `Form` local com `auto_create_process` e `linked_process_template_id`, e incluí-los no `select(...)` do `load()`.
+**Editor de cada campo (`fields.map`):**
+- Adicionar `<Textarea>` "Descrição / Instruções (opcional)" abaixo do título da pergunta. Persistência no `onBlur` via `updateField(id, { description })`.
+- Incluir `description` no `select(...)` do load e na interface `Field`.
 
-Na listagem (card do formulário):
-- Quando `auto_create_process && linked_process_template_id`, mostrar uma linha discreta: `Modelo vinculado: {nome do template}` e badge "Automação ativa".
-- Caso contrário, nada (ou badge silencioso "Sem automação" — preferir não poluir).
+**Editor do formulário — nova seção "Identidade visual":**
+- Botão "Enviar logo" (input file accept `image/png,image/jpeg,image/webp`, max 5 MB).
+- Pré-visualização atual (max-h-20).
+- Botão "Remover logo".
+- `<Select>` Alinhamento: Esquerda / Centro / Direita (default Centro).
+- Upload via `supabase.storage.from('form-logos').upload({user_id}/{form_id}/{uuid}.{ext}, file, { upsert:false, contentType })`. Salvar `logo_path` e gerar URL via `getPublicUrl`.
+- Ao trocar/remover, deletar o arquivo antigo do bucket.
 
-## 3. UI — `src/components/requests/RequestsPanel.tsx`
+**Listagem (card do formulário):**
+- Se `logo_path`, mostrar miniatura `h-8 w-8 object-contain` à esquerda do título; caso contrário, layout atual sem placeholder.
 
-Estender `Response` com `created_process_id` (já presente como `converted_process_id`; usar o novo `created_process_id` em paralelo, ambos significam vínculo a processo). Ajustes:
-- No card e no modal de detalhe, se `created_process_id` existir, mostrar badge "Processo criado" + nome do processo (fetch lazy junto com responses ou via join manual).
-- Substituir botão "Converter em processo" por "Abrir processo" (que faz `setOpenProcess(id)` navegando para Processos ou abre o `ProcessDetailDialog` — manter consistente: mais simples disabilitar o botão e adicionar um link/botão "Abrir processo" que troca para a aba Processos com `?process={id}` se já houver navegação por query, ou simplesmente um toast informativo + abre nova aba — verificar se já existe navegação programática entre painéis).
-- Trate ambos os campos `converted_process_id` (conversão manual antiga) e `created_process_id` (automática) com a mesma lógica de "já tem processo".
+## 3. UI — `src/pages/PublicForm.tsx`
 
-## 4. PublicForm
+- Estender interface `Form` com `logo_path`, `logo_alignment`; `Field` com `description`.
+- No header, antes do `<h1>`, se `logo_path`, renderizar `<img>` com `getPublicUrl(logo_path)`, classes `max-h-20 max-w-[240px] object-contain` e wrapper com `justify-{start|center|end}` conforme alinhamento.
+- Para cada campo, abaixo do `<label>` exibir, se `f.description`, `<p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{f.description}</p>`. Nada renderizado quando vazio.
 
-Nenhuma mudança lógica: o trigger faz todo o trabalho. Garantir apenas que após o INSERT bem-sucedido a tela continua mostrando "Recebido!" — já é o caso.
+## 4. Validação
 
-## 5. Segurança
+- Client: `description` opcional, max 500 chars (adicionar `fieldDescriptionSchema` em `src/lib/validation.ts`).
+- Logo: validar mime e size antes do upload; toast de erro se inválido.
 
-- A função é a única superfície privilegiada; valida `workspace_id` entre form e template.
-- RLS de `forms`/`form_responses`/`processes` permanece intacta.
-- `forms_public` segue sem expor `user_id`/template — opcionalmente expor `auto_create_process` se desejado para futuras telas; não é necessário no fluxo atual.
+## 5. Compatibilidade
 
-## 6. Critérios de aceite cobertos
+- Defaults garantem que formulários e campos antigos seguem funcionando: `description=''`, sem logo, alinhamento centro.
+- RLS de `forms`/`form_fields` inalteradas; views públicas apenas ganham colunas adicionais não sensíveis.
 
-- Modelo "Abertura" + form "Perguntas" com automação ligada → ao enviar a resposta pública, o trigger cria o processo, copia etapas e vincula via `created_process_id`.
-- Templates de outros workspaces não aparecem no seletor (filtro por `workspace_id` no client) e o trigger ainda valida no servidor.
-- Reenvios não duplicam: o trigger só dispara em INSERT; cada INSERT cria 1 processo. Se o mesmo respondente clicar "Enviar" duas vezes, são duas respostas (comportamento aceitável e consistente com o atual) — não duplicação por retry do mesmo registro.
-- Tela Processos mostra o novo processo no workspace correto.
-- Tela Solicitações mostra "Processo criado: …" com botão "Abrir processo".
+## Ordem de execução
 
-## Notas técnicas
-
-- A migração precisa rodar **antes** das mudanças de código (types do Supabase serão regerados).
-- Manter `converted_process_id` por compatibilidade; novo campo `created_process_id` é o canônico daqui em diante. Alternativa: reusar `converted_process_id` direto no trigger e dispensar coluna nova — **preferir reuso** para evitar duplicação semântica. → **Decisão:** reusar `converted_process_id`; não criar `created_process_id`. O index único parcial passa a ser sobre `converted_process_id`.
-
-Resumo final dos campos a adicionar:
-- `forms.auto_create_process`, `forms.linked_process_template_id`
-- Index único parcial em `form_responses.converted_process_id`
-- Função + trigger `AFTER INSERT ON form_responses`
+1. Rodar migração (schema + views + bucket + policies de storage).
+2. Atualizar `FormsPanel.tsx` (editor de campo, seção logo, miniatura no card).
+3. Atualizar `PublicForm.tsx` (logo no topo + descrição abaixo de cada label).
+4. Adicionar schema de validação para descrição.
