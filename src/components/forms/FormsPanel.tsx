@@ -47,6 +47,8 @@ interface Form {
   color: string;
   auto_create_process: boolean;
   linked_process_template_id: string | null;
+  logo_path: string | null;
+  logo_alignment: "left" | "center" | "right";
 }
 interface ProcessTemplate { id: string; name: string }
 
@@ -58,6 +60,7 @@ interface Field {
   field_type: FieldType;
   required: boolean;
   options: string[] | unknown;
+  description: string;
 }
 
 const FIELD_TYPES: { value: FieldType; label: string }[] = [
@@ -185,13 +188,22 @@ export const FormsPanel = ({ userId }: Props) => {
             return (
             <div key={f.id} className={cn("rounded-xl border-l-4 border bg-card p-4 group hover:shadow-sm transition", colorLeftBorder[c])}>
               <div className="flex items-start justify-between gap-2">
-                <button onClick={() => setEditing(f)} className="text-left flex-1 min-w-0">
-                  <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border mb-1.5", colorPill[c])}>
-                    {f.title}
-                  </span>
-                  {f.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{f.description}</p>
+                <button onClick={() => setEditing(f)} className="text-left flex-1 min-w-0 flex items-start gap-2">
+                  {f.logo_path && (
+                    <img
+                      src={supabase.storage.from("form-logos").getPublicUrl(f.logo_path).data.publicUrl}
+                      alt=""
+                      className="h-8 w-8 object-contain rounded shrink-0"
+                    />
                   )}
+                  <div className="min-w-0">
+                    <span className={cn("inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border mb-1.5", colorPill[c])}>
+                      {f.title}
+                    </span>
+                    {f.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{f.description}</p>
+                    )}
+                  </div>
                 </button>
                 <button
                   onClick={() => remove(f.id)}
@@ -261,8 +273,14 @@ const FormBuilder = ({
   const [color, setColor] = useState(asColor(form.color));
   const [autoCreate, setAutoCreate] = useState(form.auto_create_process);
   const [linkedTpl, setLinkedTpl] = useState<string | null>(form.linked_process_template_id);
+  const [logoPath, setLogoPath] = useState<string | null>(form.logo_path);
+  const [logoAlign, setLogoAlign] = useState<"left" | "center" | "right">(form.logo_alignment ?? "center");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
 
+  const logoUrl = logoPath
+    ? supabase.storage.from("form-logos").getPublicUrl(logoPath).data.publicUrl
+    : null;
 
   const load = async () => {
     const { data } = await supabase
@@ -294,6 +312,50 @@ const FormBuilder = ({
     setLinkedTpl(id);
     await supabase.from("forms").update({ linked_process_template_id: id }).eq("id", form.id);
   };
+
+  const onLogoFile = async (file: File | null) => {
+    if (!file) return;
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      return toast.error("Use PNG, JPG ou WEBP.");
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return toast.error("Logo deve ter no máximo 5 MB.");
+    }
+    setUploadingLogo(true);
+    const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    const path = `${userId}/${form.id}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage
+      .from("form-logos")
+      .upload(path, file, { upsert: false, contentType: file.type });
+    if (error) {
+      setUploadingLogo(false);
+      return toast.error("Falha no upload: " + error.message);
+    }
+    const old = logoPath;
+    await supabase.from("forms").update({ logo_path: path }).eq("id", form.id);
+    setLogoPath(path);
+    if (old) {
+      await supabase.storage.from("form-logos").remove([old]);
+    }
+    setUploadingLogo(false);
+    toast.success("Logo atualizado");
+  };
+
+  const removeLogo = async () => {
+    if (!logoPath) return;
+    const old = logoPath;
+    await supabase.from("forms").update({ logo_path: null }).eq("id", form.id);
+    setLogoPath(null);
+    await supabase.storage.from("form-logos").remove([old]);
+    toast.success("Logo removido");
+  };
+
+  const updateAlign = async (v: "left" | "center" | "right") => {
+    setLogoAlign(v);
+    await supabase.from("forms").update({ logo_alignment: v }).eq("id", form.id);
+  };
+
 
 
   const addField = async (type: FieldType) => {
@@ -348,6 +410,48 @@ const FormBuilder = ({
                 />
               ))}
             </div>
+          </div>
+          <div className="rounded-lg border p-3 bg-muted/20 space-y-2">
+            <p className="text-sm font-medium">Identidade visual</p>
+            <p className="text-xs text-muted-foreground">Logo aparece no topo do formulário público. PNG, JPG ou WEBP, até 5 MB.</p>
+            <div className="flex items-center gap-3">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="h-16 max-w-[160px] object-contain rounded border bg-background p-1" />
+              ) : (
+                <div className="h-16 w-16 rounded border border-dashed grid place-items-center text-[10px] text-muted-foreground">sem logo</div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="inline-flex items-center gap-1.5 text-xs h-8 px-3 rounded-md border cursor-pointer hover:bg-muted/40">
+                  <Plus className="h-3.5 w-3.5" />
+                  {uploadingLogo ? "Enviando..." : (logoPath ? "Trocar logo" : "Enviar logo")}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={uploadingLogo}
+                    onChange={(e) => { onLogoFile(e.target.files?.[0] ?? null); e.target.value = ""; }}
+                  />
+                </label>
+                {logoPath && (
+                  <button type="button" onClick={removeLogo} className="text-xs text-destructive hover:underline w-fit">
+                    Remover logo
+                  </button>
+                )}
+              </div>
+            </div>
+            {logoPath && (
+              <div>
+                <label className="text-xs font-medium block mb-1">Alinhamento</label>
+                <Select value={logoAlign} onValueChange={(v) => updateAlign(v as "left" | "center" | "right")}>
+                  <SelectTrigger className="h-8 w-[160px] text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
+                    <SelectItem value="center" className="text-xs">Centro</SelectItem>
+                    <SelectItem value="right" className="text-xs">Direita</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <div className="rounded-lg border p-3 bg-muted/20 space-y-2">
             <div className="flex items-center justify-between gap-3">
@@ -409,6 +513,13 @@ const FormBuilder = ({
                     <Switch checked={f.required} onCheckedChange={(v) => updateField(f.id, { required: v })} />
                     <span>Resposta obrigatória</span>
                   </label>
+                  <Textarea
+                    defaultValue={f.description ?? ""}
+                    placeholder="Descrição / instruções (opcional) — aparece abaixo da pergunta no formulário público"
+                    className="text-xs min-h-[50px]"
+                    maxLength={500}
+                    onBlur={(e) => updateField(f.id, { description: e.target.value.trim() } as Partial<Field>)}
+                  />
                   {(f.field_type === "select" || f.field_type === "multi_select") && (
                     <Textarea
                       defaultValue={Array.isArray(f.options) ? (f.options as string[]).join("\n") : ""}

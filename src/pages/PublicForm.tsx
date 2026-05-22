@@ -35,6 +35,8 @@ interface Form {
   title: string;
   description: string;
   is_published: boolean;
+  logo_path: string | null;
+  logo_alignment: "left" | "center" | "right" | null;
 }
 interface Field {
   id: string;
@@ -43,6 +45,7 @@ interface Field {
   field_type: FieldType;
   required: boolean;
   options: string[] | unknown;
+  description: string | null;
 }
 
 const PublicForm = () => {
@@ -61,14 +64,14 @@ const PublicForm = () => {
     (async () => {
       const { data } = await supabase
         .from("forms_public" as never)
-        .select("id,user_id,workspace_id,title,description,is_published")
+        .select("id,user_id,workspace_id,title,description,is_published,logo_path,logo_alignment")
         .eq("public_slug", slug)
         .maybeSingle();
       if (!data) { setLoading(false); return; }
       setForm(data as Form);
       const { data: fs } = await supabase
         .from("form_fields_public" as never)
-        .select("id,form_id,label,field_type,required,options,position")
+        .select("id,form_id,label,field_type,required,options,position,description")
         .eq("form_id", (data as Form).id)
         .order("position", { ascending: true });
       setFields((fs ?? []) as Field[]);
@@ -140,9 +143,22 @@ const PublicForm = () => {
     );
   }
 
+  const logoUrl = form.logo_path
+    ? supabase.storage.from("form-logos").getPublicUrl(form.logo_path).data.publicUrl
+    : null;
+  const alignClass =
+    form.logo_alignment === "left" ? "justify-start"
+    : form.logo_alignment === "right" ? "justify-end"
+    : "justify-center";
+
   return (
     <div className="min-h-screen bg-muted/20 py-10 px-4">
       <form onSubmit={submit} className="max-w-2xl mx-auto rounded-xl border bg-card p-8 space-y-5">
+        {logoUrl && (
+          <div className={`flex ${alignClass}`}>
+            <img src={logoUrl} alt="" className="max-h-20 max-w-[240px] object-contain" />
+          </div>
+        )}
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{form.title}</h1>
           {form.description && (
@@ -165,6 +181,9 @@ const PublicForm = () => {
                 {f.label}
                 {f.required && <span className="text-destructive ml-0.5">*</span>}
               </label>
+              {f.description && (
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-0.5">{f.description}</p>
+              )}
               {f.field_type === "short_text" && (
                 <Input value={(v as string) ?? ""} onChange={(e) => set(e.target.value)} required={f.required} />
               )}
