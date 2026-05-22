@@ -64,14 +64,14 @@ const PublicForm = () => {
     (async () => {
       const { data } = await supabase
         .from("forms_public" as never)
-        .select("id,user_id,workspace_id,title,description,is_published")
+        .select("id,user_id,workspace_id,title,description,is_published,logo_path,logo_alignment")
         .eq("public_slug", slug)
         .maybeSingle();
       if (!data) { setLoading(false); return; }
       setForm(data as Form);
       const { data: fs } = await supabase
         .from("form_fields_public" as never)
-        .select("id,form_id,label,field_type,required,options,position")
+        .select("id,form_id,label,field_type,required,options,position,description")
         .eq("form_id", (data as Form).id)
         .order("position", { ascending: true });
       setFields((fs ?? []) as Field[]);
