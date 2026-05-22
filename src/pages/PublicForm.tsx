@@ -169,7 +169,7 @@ const PublicForm = () => {
         </header>
 
         <div>
-          <label className="text-xs font-medium">Seu nome</label>
+          <label className="text-xs font-medium">{form.submitter_name_label?.trim() || "Seu nome"}</label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
 
