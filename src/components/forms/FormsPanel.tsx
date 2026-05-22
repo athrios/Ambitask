@@ -349,7 +349,36 @@ const FormBuilder = ({
               ))}
             </div>
           </div>
+          <div className="rounded-lg border p-3 bg-muted/20 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Criar processo automaticamente</p>
+                <p className="text-xs text-muted-foreground">
+                  Quando este formulário for respondido, um processo será criado automaticamente usando o modelo selecionado.
+                </p>
+              </div>
+              <Switch checked={autoCreate} onCheckedChange={toggleAuto} />
+            </div>
+            {autoCreate && (
+              <div>
+                <label className="text-xs font-medium block mb-1">Modelo de processo vinculado</label>
+                <Select value={linkedTpl ?? ""} onValueChange={setTemplate}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Selecione um modelo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">Nenhum modelo neste ambiente.</div>
+                    ) : templates.map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="text-sm">{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
           <div>
+
             <h4 className="text-sm font-semibold mb-2">Campos</h4>
             <div className="space-y-2">
               {fields.map((f) => (
