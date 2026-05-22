@@ -76,9 +76,11 @@ interface Props { userId: string }
 export const FormsPanel = ({ userId }: Props) => {
   const { workspaceId } = useWorkspace();
   const [forms, setForms] = useState<Form[]>([]);
+  const [templates, setTemplates] = useState<ProcessTemplate[]>([]);
   const [responseCounts, setResponseCounts] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<Form | null>(null);
   const [newTitle, setNewTitle] = useState("");
+
 
   const load = async () => {
     if (!workspaceId) return;
