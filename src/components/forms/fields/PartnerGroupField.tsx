@@ -199,7 +199,7 @@ export const PartnerGroupField = ({
       })}
 
       <Button type="button" variant="outline" size="sm" onClick={add}>
-        <UserPlus className="h-4 w-4" /> Adicionar sócio
+        <UserPlus className="h-4 w-4" /> {buttonLabel}
       </Button>
     </div>
   );
