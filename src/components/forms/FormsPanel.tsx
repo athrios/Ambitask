@@ -293,7 +293,7 @@ const FormBuilder = ({
       .select("*")
       .eq("form_id", form.id)
       .order("position", { ascending: true });
-    setFields(((data ?? []) as Field[]));
+    setFields(((data ?? []) as unknown as Field[]));
   };
   useEffect(() => { load(); }, [form.id]);
 
