@@ -1,74 +1,52 @@
-# Plano: Seção 4 — Condições entre perguntas
+# Evolução: condição por opção de múltipla escolha
 
-Permitir que uma pergunta só apareça no formulário público quando outra pergunta tiver um valor específico. Implementação simples, focada no caso de uso real (1 condição por campo), sem quebrar formulários já publicados.
+Hoje a engine de condições (`src/lib/formConditions.ts`) já suporta o operador `contains` em arrays, mas o editor no `FormsPanel.tsx` não expõe isso de forma clara quando a pergunta de origem é `multi_select`. Esta mudança é só de UX no editor — o runtime (`PublicForm.tsx`) e o schema do banco não precisam mudar.
 
-## Modelo de dados
+## O que muda no editor (`FormsPanel.tsx`)
 
-Adicionar coluna `conditional_logic jsonb NULL` em `form_fields`. Quando `NULL` ou ausente, o campo é sempre visível (comportamento atual preservado).
+No bloco "Mostrar somente se…":
 
-Formato:
-```json
-{
-  "field_id": "<uuid de outra pergunta do mesmo formulário>",
-  "operator": "equals" | "not_equals" | "contains",
-  "value": "Sim"
-}
-```
+1. **Origem `multi_select`**
+   - Operadores disponíveis: `contém` (`contains`) e `não contém` (novo: `not_contains`).
+   - Campo de valor: **dropdown com as opções daquela pergunta** (uma opção por vez — v1 simples).
+   - Default ao selecionar uma origem multi_select: operador `contains` + primeira opção.
 
-Regras:
-- `field_id` deve referenciar um campo anterior (menor `position`) do mesmo formulário.
-- `equals` / `not_equals`: comparação direta de string (case-insensitive, trim).
-- `contains`: usado quando o campo de origem é `multi_select` (array). Verifica se o array inclui `value`.
-- Tipos de campo elegíveis como origem: `short_text`, `long_text`, `select`, `multi_select`, `state_city`. Outros tipos (file, partner_group, date) ficam fora desta v1.
-- Atualizar a view `form_fields_public` para expor `conditional_logic`.
+2. **Origem `select`**
+   - Mantém `é igual a` / `é diferente de` com dropdown das opções (já existe).
 
-## Editor (`FormsPanel.tsx`)
+3. **Origem `short_text` / `long_text`**
+   - Mantém `é igual a` / `é diferente de` com input de texto.
 
-Para cada campo, abaixo do textarea de descrição, adicionar um bloco colapsável "Mostrar somente se...":
-- Select com as perguntas anteriores elegíveis (label + tipo).
-- Select de operador (`é igual a` / `é diferente de` / `contém` — esse último só aparece se origem for `multi_select`).
-- Campo de valor:
-  - Se origem for `select`/`multi_select`: dropdown com as opções daquele campo.
-  - Caso contrário: input de texto.
-- Botão "Remover condição" → grava `conditional_logic = null`.
-- Persistir em `onBlur` / `onChange` final, igual aos outros campos.
+4. **Migração suave**: se o usuário trocar a pergunta de origem, resetar `operator` e `value` para valores válidos do novo tipo, para não deixar condição quebrada.
+
+## Engine de condições (`src/lib/formConditions.ts`)
+
+- Adicionar `"not_contains"` ao tipo `ConditionOperator` e ao `parseCondition`.
+- Em `evaluateCondition`, `not_contains` = inverso de `contains` (case-insensitive, funciona para array e string).
 
 ## Formulário público (`PublicForm.tsx`)
 
-- Calcular `visibleFieldIds` em função do `values` atual via `useMemo`.
-- Helper `isFieldVisible(field, values, fieldsById)`:
-  - Sem `conditional_logic` → visível.
-  - `field_id` inexistente ou origem oculta → visível (degradação segura).
-  - Compara `values[field_id]` com `value` segundo `operator`.
-- No `.map()` dos campos, retornar `null` para invisíveis.
-- Na submissão:
-  - Não validar `required` em campos invisíveis.
-  - Remover do `data` os valores de campos invisíveis (para não vazar resposta de pergunta que o usuário não viu).
-- Estado dos campos invisíveis: manter no `values` localmente para o usuário não perder o que digitou caso volte a aparecer, mas filtrar no envio.
+Nenhuma mudança. A avaliação já é reativa ao `values` e usa o helper.
 
-## Atualizações de código
+## Exemplo coberto
 
-- Migração: `ALTER TABLE form_fields ADD COLUMN conditional_logic jsonb` + recriar view `form_fields_public` incluindo a nova coluna.
-- `src/components/forms/FormsPanel.tsx`: novo bloco na edição do campo + tipo `Field` ganha `conditional_logic`.
-- `src/pages/PublicForm.tsx`: tipo `Field` ganha `conditional_logic`, queries incluem a coluna, função de visibilidade, ajustes em validação/submissão.
-- `src/integrations/supabase/types.ts`: regenerado automaticamente após a migração.
+- Pergunta A (multi_select): "O que você deseja alterar?" — opções: endereço, capital, atividade.
+- Pergunta B (texto): "Qual o novo endereço?" — condição: A `contém` `endereço`.
+- No formulário público: B só aparece quando o usuário marca "endereço" em A. Desmarcou → some, valor não é enviado, `required` não bloqueia.
 
-## Não escopo (fica para depois se você pedir)
+## Fora de escopo (posso fazer depois se pedir)
 
-- Múltiplas condições (E / OU).
-- Condições aninhadas em `partner_group`.
-- Condição baseada em data/upload.
-- Pular seções inteiras (não temos seções ainda).
+- Múltiplas opções na mesma condição com lógica E/OU (ex.: aparece se marcar "endereço" **ou** "capital"). Hoje precisaria criar uma condição por opção, mas v1 ainda é 1 condição por campo.
+- Combinar condições de campos diferentes.
 
 ## Testes manuais
 
-1. Criar formulário com 2 campos: select "Deseja alterar endereço?" (Sim/Não) e texto "Novo endereço". Configurar condição `equals "Sim"` no segundo. Publicar.
-2. No `/f/:slug`, com "Não" selecionado, o campo "Novo endereço" não aparece e o envio funciona mesmo se ele for obrigatório.
-3. Trocando para "Sim", o campo aparece; se obrigatório, valida.
-4. Resposta gravada não contém o campo oculto.
-5. Formulário antigo (sem `conditional_logic`) continua funcionando igual.
-6. Operador `not_equals` e `contains` (com `multi_select`) funcionam.
-7. RLS/workspace: outro usuário sem permissão em `formularios.view` não consegue ler `conditional_logic`. Público anônimo lê via view sem expor outros campos.
-8. Vínculo com modelo de processo (auto_create_process) continua funcionando — `handle_form_response_autoprocess` não depende da nova coluna.
+1. Criar form com multi_select A (3 opções) + texto B condicionado a A `contém` "endereço". Publicar.
+2. No `/f/:slug`: sem marcar nada → B oculto. Marcar "endereço" → B aparece. Desmarcar → B some.
+3. Marcar "capital" sozinho → B continua oculto.
+4. B obrigatório + oculto → envio funciona sem preencher B.
+5. Resposta salva em `form_responses.data` não contém a chave de B quando ele estava oculto.
+6. Trocar origem de B de multi_select para select → operador/valor resetam para combinação válida (sem condição inválida persistida).
+7. Condições antigas com `contains` continuam funcionando (compatibilidade).
 
-Quando você confirmar, executo a migração e as alterações de código, e paro para você revisar antes da Seção 5.
+Confirma que sigo com essa abordagem (1 opção por condição, com operador `não contém` incluso)?
