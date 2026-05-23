@@ -14,7 +14,8 @@ import { AgendaPanel } from "@/components/agenda/AgendaPanel";
 import { GlobalSearch } from "@/components/shared/GlobalSearch";
 import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
 import { WorkspacesPanel } from "@/components/workspace/WorkspacesPanel";
-import { RequireModule, RequireOwner } from "@/components/auth/RequireModule";
+import { SettingsPanel } from "@/components/settings/SettingsPanel";
+import { RequireModule } from "@/components/auth/RequireModule";
 import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import {
   LogOut,
@@ -58,7 +59,7 @@ const SECTION_META: Record<
   forms:     { label: "Formulários",  icon: FileText,      subtitle: "Formulários para receber solicitações." },
   requests:  { label: "Respostas",    icon: Inbox,         subtitle: "Respostas recebidas dos formulários." },
   done:      { label: "Concluídas",   icon: CheckCircle2,  subtitle: "O que você já tirou da frente." },
-  settings:  { label: "Ambientes",    icon: Settings,      subtitle: "Gerencie ambientes, membros e permissões." },
+  settings:  { label: "Configurações", icon: Settings,      subtitle: "Perfil, aparência e ambientes de trabalho." },
 };
 
 const SECTION_MODULE: Record<Exclude<Section, "settings">, ModuleKey> = {
@@ -143,7 +144,7 @@ const Index = () => {
   ];
 
   const visibleSections = allSections.filter((s) => {
-    if (s === "settings") return isOwnerOfAny;
+    if (s === "settings") return true;
     return canViewModule(SECTION_MODULE[s]);
   });
 
@@ -357,9 +358,7 @@ const Index = () => {
                 </RequireModule>
               )}
               {section === "settings" && (
-                <RequireOwner onDenied={() => changeSection("today")}>
-                  <WorkspacesPanel />
-                </RequireOwner>
+                <SettingsPanel />
               )}
             </div>
           </div>
