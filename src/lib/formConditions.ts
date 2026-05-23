@@ -1,4 +1,4 @@
-export type ConditionOperator = "equals" | "not_equals" | "contains";
+export type ConditionOperator = "equals" | "not_equals" | "contains" | "not_contains";
 
 export interface FieldCondition {
   field_id: string;
