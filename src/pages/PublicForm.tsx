@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { CheckCircle2 } from "lucide-react";
 import { submitterNameSchema, publicTextAnswerSchema } from "@/lib/validation";
 import { StateCityField } from "@/components/forms/fields/StateCityField";
 import { PartnerGroupField } from "@/components/forms/fields/PartnerGroupField";
+import { parseCondition, evaluateCondition, type FieldCondition } from "@/lib/formConditions";
 
 type FieldType =
   | "short_text"
@@ -48,6 +49,7 @@ interface Field {
   options: string[] | unknown;
   description: string | null;
   add_button_label: string | null;
+  conditional_logic: FieldCondition | null;
 }
 
 const PublicForm = () => {
@@ -73,13 +75,35 @@ const PublicForm = () => {
       setForm(data as Form);
       const { data: fs } = await supabase
         .from("form_fields_public" as never)
-        .select("id,form_id,label,field_type,required,options,position,description,add_button_label")
+        .select("id,form_id,label,field_type,required,options,position,description,add_button_label,conditional_logic")
         .eq("form_id", (data as Form).id)
         .order("position", { ascending: true });
-      setFields((fs ?? []) as Field[]);
+      const parsed = ((fs ?? []) as unknown as Array<Record<string, unknown>>).map((row) => ({
+        ...row,
+        conditional_logic: parseCondition(row.conditional_logic),
+      })) as unknown as Field[];
+      setFields(parsed);
       setLoading(false);
     })();
   }, [slug]);
+
+  const visibility = useMemo(() => {
+    const labelById: Record<string, string> = {};
+    fields.forEach((f) => { labelById[f.id] = f.label; });
+    // Iterate in position order so a dependent field can read the visibility
+    // of fields declared before it. Single-pass is enough because conditions
+    // can only reference earlier fields (enforced in the editor).
+    const visibleById: Record<string, boolean> = {};
+    for (const f of fields) {
+      if (!f.conditional_logic) { visibleById[f.id] = true; continue; }
+      visibleById[f.id] = evaluateCondition(f.conditional_logic, {
+        labelById,
+        visibleById,
+        answers: values,
+      });
+    }
+    return visibleById;
+  }, [fields, values]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +112,7 @@ const PublicForm = () => {
     if (!nameParsed.success) return toast.error(nameParsed.error.issues[0]?.message ?? "Nome inválido");
     const cleanValues: Record<string, unknown> = {};
     for (const f of fields) {
+      if (!visibility[f.id]) continue; // skip hidden fields entirely
       const v = values[f.label];
       const empty = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
       if (f.required && empty) {
@@ -100,7 +125,7 @@ const PublicForm = () => {
       } else if (Array.isArray(v)) {
         if (v.length > 50) return toast.error(`${f.label}: máximo 50 itens`);
         cleanValues[f.label] = v.slice(0, 50);
-      } else {
+      } else if (v !== undefined) {
         cleanValues[f.label] = v;
       }
     }
@@ -117,6 +142,7 @@ const PublicForm = () => {
     if (error) return toast.error("Não foi possível enviar. O formulário pode ter sido despublicado.");
     setSubmitted(true);
   };
+
 
   if (loading) return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Carregando…</div>;
   if (!form) {
@@ -174,6 +200,7 @@ const PublicForm = () => {
         </div>
 
         {fields.map((f) => {
+          if (!visibility[f.id]) return null;
           const opts = (Array.isArray(f.options) ? f.options : []) as string[];
           const v = values[f.label];
           const set = (val: unknown) => setValues((p) => ({ ...p, [f.label]: val }));
