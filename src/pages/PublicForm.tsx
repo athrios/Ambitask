@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { CheckCircle2 } from "lucide-react";
 import { submitterNameSchema, publicTextAnswerSchema } from "@/lib/validation";
 import { StateCityField } from "@/components/forms/fields/StateCityField";
 import { PartnerGroupField } from "@/components/forms/fields/PartnerGroupField";
+import { parseCondition, evaluateCondition, type FieldCondition } from "@/lib/formConditions";
 
 type FieldType =
   | "short_text"
