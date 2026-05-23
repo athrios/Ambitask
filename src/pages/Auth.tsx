@@ -22,6 +22,27 @@ const AuthPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+
+  const sendRecovery = async () => {
+    const emailParsed = z.string().trim().email().max(255).safeParse(email);
+    if (!emailParsed.success) {
+      toast.error("Digite um email válido para receber o link de recuperação.");
+      return;
+    }
+    setRecovering(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(emailParsed.data, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Se houver uma conta com esse email, enviaremos um link de recuperação.");
+    } catch (err: any) {
+      toast.error(err.message ?? "Erro ao enviar email de recuperação");
+    } finally {
+      setRecovering(false);
+    }
+  };
 
   useEffect(() => {
     if (user) nav(redirect, { replace: true });
