@@ -28,6 +28,7 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/f/:slug" element={<PublicForm />} />
                 <Route path="/convite/:id" element={<AcceptInvite />} />
                 <Route path="/unsubscribe" element={<Unsubscribe />} />
