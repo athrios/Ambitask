@@ -75,10 +75,14 @@ const PublicForm = () => {
       setForm(data as Form);
       const { data: fs } = await supabase
         .from("form_fields_public" as never)
-        .select("id,form_id,label,field_type,required,options,position,description,add_button_label")
+        .select("id,form_id,label,field_type,required,options,position,description,add_button_label,conditional_logic")
         .eq("form_id", (data as Form).id)
         .order("position", { ascending: true });
-      setFields((fs ?? []) as Field[]);
+      const parsed = ((fs ?? []) as unknown as Array<Record<string, unknown>>).map((row) => ({
+        ...row,
+        conditional_logic: parseCondition(row.conditional_logic),
+      })) as unknown as Field[];
+      setFields(parsed);
       setLoading(false);
     })();
   }, [slug]);
