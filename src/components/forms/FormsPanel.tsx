@@ -598,3 +598,140 @@ const FormBuilder = ({
     </Dialog>
   );
 };
+
+const ELIGIBLE_SOURCE_TYPES: FieldType[] = [
+  "short_text",
+  "long_text",
+  "select",
+  "multi_select",
+];
+
+const ConditionEditor = ({
+  field,
+  allFields,
+  onChange,
+}: {
+  field: Field;
+  allFields: Field[];
+  onChange: (cond: FieldCondition | null) => void;
+}) => {
+  const cond = field.conditional_logic;
+  const [open, setOpen] = useState(!!cond);
+  const sources = allFields.filter(
+    (x) => x.position < field.position && ELIGIBLE_SOURCE_TYPES.includes(x.field_type),
+  );
+  const source = cond ? allFields.find((x) => x.id === cond.field_id) : null;
+  const sourceOpts =
+    source && (source.field_type === "select" || source.field_type === "multi_select")
+      ? ((Array.isArray(source.options) ? source.options : []) as string[])
+      : [];
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline w-fit"
+      >
+        + Mostrar somente se…
+      </button>
+    );
+  }
+
+  if (sources.length === 0) {
+    return (
+      <div className="text-[11px] text-muted-foreground border rounded-md p-2 bg-muted/30">
+        Adicione uma pergunta anterior do tipo texto ou seleção para criar uma condição.
+        <button
+          type="button"
+          onClick={() => { setOpen(false); if (cond) onChange(null); }}
+          className="ml-2 underline hover:text-foreground"
+        >
+          fechar
+        </button>
+      </div>
+    );
+  }
+
+  const update = (patch: Partial<FieldCondition>) => {
+    const base: FieldCondition = cond ?? {
+      field_id: sources[0].id,
+      operator: "equals",
+      value: "",
+    };
+    const next = { ...base, ...patch };
+    if (patch.field_id) {
+      // reset value when source changes
+      next.value = "";
+      const s = allFields.find((x) => x.id === patch.field_id);
+      next.operator = s?.field_type === "multi_select" ? "contains" : "equals";
+    }
+    onChange(next);
+  };
+
+  return (
+    <div className="rounded-md border bg-muted/20 p-2 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Mostrar somente se…
+        </span>
+        <button
+          type="button"
+          onClick={() => { setOpen(false); onChange(null); }}
+          className="text-[11px] text-destructive hover:underline"
+        >
+          Remover condição
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Select
+          value={cond?.field_id ?? ""}
+          onValueChange={(v) => update({ field_id: v })}
+        >
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pergunta…" /></SelectTrigger>
+          <SelectContent>
+            {sources.map((s) => (
+              <SelectItem key={s.id} value={s.id} className="text-xs">
+                {s.label || "(sem rótulo)"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={cond?.operator ?? "equals"}
+          onValueChange={(v) => update({ operator: v as ConditionOperator })}
+        >
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="equals" className="text-xs">é igual a</SelectItem>
+            <SelectItem value="not_equals" className="text-xs">é diferente de</SelectItem>
+            {source?.field_type === "multi_select" && (
+              <SelectItem value="contains" className="text-xs">contém</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+        {sourceOpts.length > 0 ? (
+          <Select
+            value={cond?.value ?? ""}
+            onValueChange={(v) => update({ value: v })}
+          >
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Valor…" /></SelectTrigger>
+            <SelectContent>
+              {sourceOpts.map((o) => (
+                <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={cond?.value ?? ""}
+            onChange={(e) => update({ value: e.target.value })}
+            placeholder="Valor"
+            className="h-8 text-xs"
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
