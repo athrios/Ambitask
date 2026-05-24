@@ -97,6 +97,7 @@ export const RequestsPanel = ({ userId }: Props) => {
   const [view, setView] = useState<ViewMode>("table");
   const [open, setOpen] = useState<Response | null>(null);
   const [openFormLabels, setOpenFormLabels] = useState<Set<string>>(new Set());
+  const [openFieldOrder, setOpenFieldOrder] = useState<Map<string, number>>(new Map());
 
   const load = async () => {
     if (!workspaceId) return;
