@@ -55,6 +55,11 @@ const SUBFIELD_LABELS: Record<string, string> = {
   participacao: "Participação no capital (R$)",
   uf: "UF",
   cidade: "Cidade",
+  cep: "CEP",
+  logradouro: "Logradouro",
+  numero: "Número",
+  complemento: "Complemento",
+  bairro: "Bairro",
 };
 
 const prettySubLabel = (k: string) => SUBFIELD_LABELS[k] ?? k;
