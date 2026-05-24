@@ -54,7 +54,8 @@ type FieldType =
   | "date"
   | "file"
   | "state_city"
-  | "partner_group";
+  | "partner_group"
+  | "address";
 
 interface Form {
   id: string;
