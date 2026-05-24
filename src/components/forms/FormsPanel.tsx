@@ -414,19 +414,13 @@ const FormBuilder = ({
     if (oldIndex < 0 || newIndex < 0) return;
     const reordered = arrayMove(fields, oldIndex, newIndex).map((f, i) => ({ ...f, position: i }));
 
-    // Detect conditions that now reference a field that ended up after the dependent
-    const labelById: Record<string, string> = {};
-    reordered.forEach((f) => { labelById[f.id] = f.label; });
-    const idByLabel: Record<string, string> = {};
-    reordered.forEach((f) => { idByLabel[f.label] = f.id; });
+    // Detect conditions that now reference a field positioned at/after the dependent
     let brokenCount = 0;
-    const cleaned = reordered.map((f) => {
+    const cleaned = reordered.map((f, selfIdx) => {
       const cond = f.conditional_logic;
       if (!cond) return f;
-      const srcId = idByLabel[cond.sourceLabel];
-      if (!srcId) return f;
-      const srcIdx = reordered.findIndex((x) => x.id === srcId);
-      const selfIdx = reordered.findIndex((x) => x.id === f.id);
+      const srcIdx = reordered.findIndex((x) => x.id === cond.field_id);
+      if (srcIdx === -1) return f;
       if (srcIdx >= selfIdx) {
         brokenCount += 1;
         return { ...f, conditional_logic: null };
