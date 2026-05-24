@@ -188,6 +188,7 @@ export const RequestsPanel = ({ userId }: Props) => {
     }
     if (typeof v === "object") {
       const o = v as Record<string, unknown>;
+      if ("cep" in o || "logradouro" in o || "numero" in o) return formatAddress(o);
       if ("uf" in o || "cidade" in o) return `${o.uf ?? "—"} / ${o.cidade ?? "—"}`;
       return Object.entries(o)
         .map(([kk, vv]) => `${prettySubLabel(kk)}: ${formatValue(vv)}`)
