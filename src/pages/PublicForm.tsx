@@ -17,6 +17,7 @@ import { CheckCircle2 } from "lucide-react";
 import { submitterNameSchema, publicTextAnswerSchema } from "@/lib/validation";
 import { StateCityField } from "@/components/forms/fields/StateCityField";
 import { PartnerGroupField } from "@/components/forms/fields/PartnerGroupField";
+import { AddressField, type AddressValue } from "@/components/forms/fields/AddressField";
 import { parseCondition, evaluateCondition, type FieldCondition } from "@/lib/formConditions";
 
 type FieldType =
@@ -27,7 +28,8 @@ type FieldType =
   | "date"
   | "file"
   | "state_city"
-  | "partner_group";
+  | "partner_group"
+  | "address";
 
 interface Form {
   id: string;
@@ -117,6 +119,12 @@ const PublicForm = () => {
       const empty = v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
       if (f.required && empty) {
         return toast.error(`Preencha "${f.label}"`);
+      }
+      if (f.field_type === "address" && f.required) {
+        const a = (v ?? {}) as AddressValue;
+        if (!a.cep || a.cep.replace(/\D/g, "").length !== 8 || !a.numero?.trim() || !a.logradouro?.trim()) {
+          return toast.error(`Preencha o endereço em "${f.label}" (CEP e número)`);
+        }
       }
       if (typeof v === "string") {
         const r = publicTextAnswerSchema.safeParse(v);
@@ -294,6 +302,13 @@ const PublicForm = () => {
                   value={(Array.isArray(v) ? v : []) as never}
                   onChange={(val) => set(val)}
                   addButtonLabel={f.add_button_label?.trim() || undefined}
+                />
+              )}
+              {f.field_type === "address" && (
+                <AddressField
+                  value={v as AddressValue | undefined}
+                  onChange={(val) => set(val)}
+                  required={f.required}
                 />
               )}
             </div>

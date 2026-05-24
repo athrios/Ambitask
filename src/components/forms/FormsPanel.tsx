@@ -54,7 +54,8 @@ type FieldType =
   | "date"
   | "file"
   | "state_city"
-  | "partner_group";
+  | "partner_group"
+  | "address";
 
 interface Form {
   id: string;
@@ -92,6 +93,7 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "date", label: "Data" },
   { value: "file", label: "Arquivo / Anexo" },
   { value: "state_city", label: "Estado + Cidade" },
+  { value: "address", label: "Endereço (CEP)" },
   { value: "partner_group", label: "Grupo de sócios" },
 ];
 

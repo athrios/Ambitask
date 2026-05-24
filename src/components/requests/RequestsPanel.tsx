@@ -55,9 +55,24 @@ const SUBFIELD_LABELS: Record<string, string> = {
   participacao: "Participação no capital (R$)",
   uf: "UF",
   cidade: "Cidade",
+  cep: "CEP",
+  logradouro: "Logradouro",
+  numero: "Número",
+  complemento: "Complemento",
+  bairro: "Bairro",
 };
 
 const prettySubLabel = (k: string) => SUBFIELD_LABELS[k] ?? k;
+
+const formatAddress = (o: Record<string, unknown>): string => {
+  const s = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+  const line1 = [s("logradouro"), s("numero")].filter(Boolean).join(", ");
+  const withCompl = s("complemento") ? `${line1} – ${s("complemento")}` : line1;
+  const cityUf = [s("cidade"), s("uf")].filter(Boolean).join("/");
+  const tail = [s("bairro"), cityUf].filter(Boolean).join(", ");
+  const cep = s("cep") ? ` – CEP ${s("cep")}` : "";
+  return [withCompl, tail].filter(Boolean).join(", ") + cep || "—";
+};
 
 const CopyButton = ({ getText, className }: { getText: () => string; className?: string }) => {
   const [done, setDone] = useState(false);
@@ -183,6 +198,7 @@ export const RequestsPanel = ({ userId }: Props) => {
     }
     if (typeof v === "object") {
       const o = v as Record<string, unknown>;
+      if ("cep" in o || "logradouro" in o || "numero" in o) return formatAddress(o);
       if ("uf" in o || "cidade" in o) return `${o.uf ?? "—"} / ${o.cidade ?? "—"}`;
       return Object.entries(o)
         .map(([kk, vv]) => `${prettySubLabel(kk)}: ${formatValue(vv)}`)
@@ -403,7 +419,13 @@ export const RequestsPanel = ({ userId }: Props) => {
                     typeof v[0] === "object" &&
                     v[0] !== null &&
                     !Array.isArray(v[0]);
+                  const isAddress =
+                    v &&
+                    typeof v === "object" &&
+                    !Array.isArray(v) &&
+                    ("cep" in (v as object) || "logradouro" in (v as object) || "numero" in (v as object));
                   const isStateCity =
+                    !isAddress &&
                     v &&
                     typeof v === "object" &&
                     !Array.isArray(v) &&
@@ -422,6 +444,13 @@ export const RequestsPanel = ({ userId }: Props) => {
                         <div className="flex items-center gap-2">
                           <FileLink file={v as { path: string; name: string }} />
                           <CopyButton getText={() => (v as { name: string }).name} />
+                        </div>
+                      ) : isAddress ? (
+                        <div className="flex items-start gap-2">
+                          <p className="text-sm flex-1 whitespace-pre-wrap">
+                            {formatAddress(v as Record<string, unknown>)}
+                          </p>
+                          <CopyButton getText={() => formatAddress(v as Record<string, unknown>)} />
                         </div>
                       ) : isStateCity ? (
                         <div className="flex items-start gap-2">
