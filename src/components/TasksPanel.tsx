@@ -49,8 +49,11 @@ import {
   MoreHorizontal,
   Calendar as CalendarIcon,
   EyeOff,
+  Circle,
+  Flag,
 } from "lucide-react";
 import { toast } from "sonner";
+
 import { cn } from "@/lib/utils";
 import {
   TASK_STATUS,
