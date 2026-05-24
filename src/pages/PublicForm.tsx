@@ -120,6 +120,12 @@ const PublicForm = () => {
       if (f.required && empty) {
         return toast.error(`Preencha "${f.label}"`);
       }
+      if (f.field_type === "address" && f.required) {
+        const a = (v ?? {}) as AddressValue;
+        if (!a.cep || a.cep.replace(/\D/g, "").length !== 8 || !a.numero?.trim() || !a.logradouro?.trim()) {
+          return toast.error(`Preencha o endereço em "${f.label}" (CEP e número)`);
+        }
+      }
       if (typeof v === "string") {
         const r = publicTextAnswerSchema.safeParse(v);
         if (!r.success) return toast.error(`${f.label}: ${r.error.issues[0]?.message ?? "inválido"}`);
