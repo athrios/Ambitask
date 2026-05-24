@@ -419,7 +419,13 @@ export const RequestsPanel = ({ userId }: Props) => {
                     typeof v[0] === "object" &&
                     v[0] !== null &&
                     !Array.isArray(v[0]);
+                  const isAddress =
+                    v &&
+                    typeof v === "object" &&
+                    !Array.isArray(v) &&
+                    ("cep" in (v as object) || "logradouro" in (v as object) || "numero" in (v as object));
                   const isStateCity =
+                    !isAddress &&
                     v &&
                     typeof v === "object" &&
                     !Array.isArray(v) &&
