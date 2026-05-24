@@ -17,6 +17,7 @@ import { CheckCircle2 } from "lucide-react";
 import { submitterNameSchema, publicTextAnswerSchema } from "@/lib/validation";
 import { StateCityField } from "@/components/forms/fields/StateCityField";
 import { PartnerGroupField } from "@/components/forms/fields/PartnerGroupField";
+import { AddressField, type AddressValue } from "@/components/forms/fields/AddressField";
 import { parseCondition, evaluateCondition, type FieldCondition } from "@/lib/formConditions";
 
 type FieldType =
@@ -27,7 +28,8 @@ type FieldType =
   | "date"
   | "file"
   | "state_city"
-  | "partner_group";
+  | "partner_group"
+  | "address";
 
 interface Form {
   id: string;
