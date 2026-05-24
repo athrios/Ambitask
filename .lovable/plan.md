@@ -1,41 +1,33 @@
-# Reordenar perguntas por arrastar
+## Novo tipo de campo: Endereço (com busca por CEP)
 
-Permitir reordenar as perguntas no editor de formulário arrastando-as para cima/baixo. A nova ordem persiste e passa a valer no formulário público e na visualização de respostas.
+Adicionar um novo tipo de campo no construtor de formulários chamado **Endereço**, que pede o CEP, busca automaticamente os dados via API pública dos Correios (ViaCEP) e pede ao respondente apenas **número** e **complemento**.
 
-## Mudanças
+### Comportamento do respondente (PublicForm)
+1. Campo CEP com máscara `00000-000`.
+2. Ao completar 8 dígitos, busca em `https://viacep.com.br/ws/{cep}/json/`.
+3. Preenche e exibe (em modo leitura) **Logradouro, Bairro, Cidade, UF**.
+4. Pede ao usuário: **Número** (obrigatório se o campo for obrigatório) e **Complemento** (opcional).
+5. Tratamento de erro: CEP inválido / não encontrado mostra mensagem inline e permite tentar novamente. Sem internet → toast.
+6. Caso raro (CEP genérico sem logradouro), permite edição manual de logradouro/bairro.
 
-### 1. Biblioteca de drag-and-drop
-- Adicionar `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` (mesma stack já recomendada para shadcn, leve e acessível).
+### Estrutura do dado salvo
+`form_responses.data["Endereço"]` recebe objeto:
+```json
+{ "cep": "01310-100", "logradouro": "Av. Paulista", "numero": "1000",
+  "complemento": "Sala 5", "bairro": "Bela Vista",
+  "cidade": "São Paulo", "uf": "SP" }
+```
 
-### 2. Editor de formulário (`src/components/forms/FormsPanel.tsx`)
-- Envolver a lista de campos (linha ~505) em `DndContext` + `SortableContext` com estratégia vertical.
-- Cada card de campo vira um `SortableItem`:
-  - Adicionar um handle visível à esquerda (ícone `GripVertical` do lucide) com cursor `grab` / `grabbing`.
-  - Apenas o handle inicia o drag — inputs e selects dentro do card seguem funcionando normalmente.
-- Ao soltar (`onDragEnd`):
-  - Reordenar localmente (`arrayMove`) para feedback imediato.
-  - Recalcular `position` (0..n-1) e persistir em lote: `UPDATE form_fields SET position=… WHERE id=…` para cada item alterado.
-  - Em caso de erro, recarregar do banco e mostrar toast.
+### Mudanças técnicas
 
-### 3. Lógica condicional
-- A regra atual ("uma pergunta só pode condicionar-se a uma anterior") continua válida. Após reordenar:
-  - Detectar condições que passaram a referenciar um campo posicionado depois e limpá-las (setar `conditional_logic = null`), avisando com toast: "Algumas condições foram removidas porque a pergunta de origem ficou abaixo."
-  - Já existe helper de avaliação em `src/lib/formConditions.ts`; só usar para localizar quebras.
+1. **Banco** (`supabase--migration`): atualizar `validate_form_field_type` para aceitar `'address'` no enum de tipos permitidos.
+2. **`src/components/forms/fields/AddressField.tsx`** (novo): componente reutilizável com lookup ViaCEP, cache local por CEP, loading state, e callbacks `onChange`.
+3. **`src/pages/PublicForm.tsx`**: adicionar `"address"` ao tipo `FieldType`, importar e renderizar `AddressField`. Validação de obrigatório checa `cep` + `numero` preenchidos.
+4. **`src/components/forms/FormsPanel.tsx`**: incluir `"address"` na lista de tipos selecionáveis ao criar/editar campos (label "Endereço (CEP)"). O construtor não precisa de configuração extra.
+5. **`src/components/requests/RequestsPanel.tsx`**: na exibição de respostas, formatar valor `address` como string legível: `"Av. Paulista, 1000 – Sala 5, Bela Vista, São Paulo/SP – 01310-100"`. Conversão para tarefa/processo usa a mesma string.
+6. **`src/lib/validation.ts`**: novo schema `addressAnswerSchema` (CEP no formato `00000-000`, número ≤ 20 chars, complemento ≤ 120 chars, demais campos ≤ 200).
 
-### 4. Formulário público (`src/pages/PublicForm.tsx`)
-- Já ordena por `position` ascendente — nada a mudar. Confirmar comportamento após reorder.
-
-### 5. Visualização de respostas (`src/components/requests/RequestsPanel.tsx`)
-- Hoje renderiza `Object.entries(open.data)` na ordem do JSON. Carregar `label` + `position` dos `form_fields` do formulário aberto e renderizar as respostas seguindo a ordem das perguntas (chaves desconhecidas vão ao final).
-- Aplicar a mesma ordem em `formatData` (cópia/clipboard).
-
-## Detalhes técnicos
-- IDs estáveis para `SortableContext`: `fields.map(f => f.id)`.
-- Animação curta (`transition: transform 150ms`).
-- Handle com `aria-label="Reordenar pergunta"` e suporte a teclado (dnd-kit já cobre setas + espaço).
-- Persistência: usar `Promise.all` apenas para os IDs cuja `position` mudou.
-- Sem migrações de banco; coluna `position` já existe em `form_fields`.
-
-## Fora de escopo
-- Reordenar opções dentro de um campo select/multi-select.
-- Reordenar respostas individualmente (a ordem segue as perguntas).
+### Fora do escopo
+- Validação de existência real do endereço além do que o ViaCEP retorna.
+- Geocoding / mapa.
+- Reordenação ou edição de endereços já submetidos.
