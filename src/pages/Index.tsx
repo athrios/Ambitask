@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace, type ModuleKey } from "@/hooks/useWorkspace";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { TasksPanel, type Task, type TasksFilter } from "@/components/TasksPanel";
@@ -31,6 +32,7 @@ import {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,15 +53,15 @@ const SECTION_META: Record<
   Section,
   { label: string; icon: typeof Sun; subtitle: string }
 > = {
-  today:     { label: "Hoje",         icon: Sun,          subtitle: "O que precisa acontecer hoje." },
-  agenda:    { label: "Agenda",       icon: CalendarRange, subtitle: "Visão de tarefas e processos por dia, semana e mês." },
-  schedule:  { label: "Cronograma",   icon: CalendarClock, subtitle: "Sua agenda do dia, bloco a bloco." },
-  tasks:     { label: "Tarefas",      icon: ListChecks,    subtitle: "Organize suas tarefas por data, status e prioridade." },
-  processes: { label: "Processos",    icon: Workflow,      subtitle: "Processos recorrentes em execução." },
-  forms:     { label: "Formulários",  icon: FileText,      subtitle: "Formulários para receber solicitações." },
-  requests:  { label: "Respostas",    icon: Inbox,         subtitle: "Respostas recebidas dos formulários." },
-  done:      { label: "Concluídas",   icon: CheckCircle2,  subtitle: "O que você já tirou da frente." },
-  settings:  { label: "Configurações", icon: Settings,      subtitle: "Perfil, aparência e ambientes de trabalho." },
+  today:     { label: "Hoje",          icon: Sun,           subtitle: "O que precisa acontecer hoje." },
+  agenda:    { label: "Agenda",        icon: CalendarRange,  subtitle: "Visão de tarefas e processos por dia, semana e mês." },
+  schedule:  { label: "Cronograma",    icon: CalendarClock,  subtitle: "Sua agenda do dia, bloco a bloco." },
+  tasks:     { label: "Tarefas",       icon: ListChecks,     subtitle: "Organize suas tarefas por data, status e prioridade." },
+  processes: { label: "Processos",     icon: Workflow,       subtitle: "Processos recorrentes em execução." },
+  forms:     { label: "Formulários",   icon: FileText,       subtitle: "Formulários para receber solicitações." },
+  requests:  { label: "Respostas",     icon: Inbox,          subtitle: "Respostas recebidas dos formulários." },
+  done:      { label: "Concluídas",    icon: CheckCircle2,   subtitle: "O que você já tirou da frente." },
+  settings:  { label: "Configurações", icon: Settings,       subtitle: "Perfil, aparência e ambientes de trabalho." },
 };
 
 const SECTION_MODULE: Record<Exclude<Section, "settings">, ModuleKey> = {
@@ -77,14 +79,17 @@ const Index = () => {
   const { user, loading } = useAuth();
   const { workspaceId, canViewModule, isOwnerOfAny, loading: wsLoading } = useWorkspace();
   const nav = useNavigate();
+  const isMobile = useIsMobile();
 
-  const [date, setDate]           = useState(today());
-  const [tasks, setTasks]         = useState<Task[]>([]);
-  const [section, setSection]     = useState<Section>("today");
+  const [date, setDate]             = useState(today());
+  const [tasks, setTasks]           = useState<Task[]>([]);
+  const [section, setSection]       = useState<Section>("today");
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // ── Sidebar collapse ──────────────────────────────────────────
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // ── Sidebar: starts open on desktop, closed on mobile ────────
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
 
   // ── Section transition (120 ms fade + lift) ───────────────────
   const [contentVisible, setContentVisible] = useState(true);
@@ -92,6 +97,8 @@ const Index = () => {
 
   const changeSection = (id: Section) => {
     if (id === section) return;
+    // Close sidebar overlay on mobile after selecting a section
+    if (isMobile) setSidebarOpen(false);
     pendingSection.current = id;
     setContentVisible(false);
   };
@@ -102,7 +109,7 @@ const Index = () => {
         setSection(pendingSection.current!);
         pendingSection.current = null;
         setContentVisible(true);
-      }, 80); // fade-out duration before swapping content
+      }, 80);
       return () => clearTimeout(t);
     }
   }, [contentVisible]);
@@ -163,16 +170,34 @@ const Index = () => {
   const tasksFilter: TasksFilter =
     section === "today" ? "today" : section === "done" ? "done" : "all";
 
+  const expanded = sidebarOpen || isMobile;
+
   return (
     <main className="min-h-screen bg-background">
       <div className="flex min-h-screen">
 
+        {/* ── MOBILE BACKDROP ─────────────────────────────────── */}
+        {isMobile && sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/40"
+            onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* ── SIDEBAR ─────────────────────────────────────────── */}
         <aside
           className={cn(
-            "shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col",
-            "transition-[width] duration-200 ease-in-out overflow-hidden",
-            sidebarOpen ? "w-60" : "w-14",
+            "flex flex-col border-r bg-sidebar text-sidebar-foreground overflow-hidden",
+            // Mobile: fixed overlay that slides in/out
+            "fixed inset-y-0 left-0 z-50",
+            // Desktop: relative, part of the normal flow
+            "md:relative md:inset-auto md:z-auto md:shrink-0",
+            // Transitions
+            "transition-[width,transform] duration-200 ease-in-out",
+            isMobile
+              ? cn("w-64", sidebarOpen ? "translate-x-0" : "-translate-x-full")
+              : sidebarOpen ? "w-60" : "w-14",
           )}
         >
           {/* Header */}
@@ -180,7 +205,7 @@ const Index = () => {
             {/* Gold accent line */}
             <div className="absolute bottom-0 left-3 right-3 h-[1px] bg-gradient-to-r from-transparent via-[hsl(42,42%,50%)] to-transparent opacity-60" />
 
-            {sidebarOpen && (
+            {expanded && (
               <div className="flex flex-col flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <img
@@ -200,38 +225,41 @@ const Index = () => {
               onClick={() => setSidebarOpen((o) => !o)}
               className={cn(
                 "shrink-0 p-1 rounded-md text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors",
-                !sidebarOpen && "mx-auto",
+                !sidebarOpen && !isMobile && "mx-auto",
               )}
               title={sidebarOpen ? "Ocultar menu" : "Mostrar menu"}
             >
-              {sidebarOpen
+              {expanded
                 ? <PanelLeftClose className="h-4 w-4" />
                 : <PanelLeftOpen  className="h-4 w-4" />
               }
             </button>
           </div>
 
-          {/* Workspace switcher — only when open */}
-          {sidebarOpen && (
+          {/* Workspace switcher */}
+          {expanded && (
             <WorkspaceSwitcher onManage={() => changeSection("settings")} />
           )}
 
-          {/* Search bar — only when open */}
-          {sidebarOpen && (
+          {/* Search bar */}
+          {expanded && (
             <div className="px-2 pt-1">
               <button
-                onClick={() => setSearchOpen(true)}
+                onClick={() => {
+                  if (isMobile) setSidebarOpen(false);
+                  setSearchOpen(true);
+                }}
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-sidebar-foreground/70 border border-sidebar-border hover:bg-sidebar-accent/60"
               >
                 <Search className="h-3.5 w-3.5" />
                 <span className="flex-1 text-left">Buscar...</span>
-                <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-sidebar-accent/60 border border-sidebar-border">⌘K</kbd>
+                <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-sidebar-accent/60 border border-sidebar-border">⌘K</kbd>
               </button>
             </div>
           )}
 
           {/* Nav */}
-          <nav className="flex-1 p-2 space-y-0.5">
+          <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
             {visibleSections.map((id) => {
               const m = SECTION_META[id];
               const I = m.icon;
@@ -240,21 +268,21 @@ const Index = () => {
                 <button
                   key={id}
                   onClick={() => changeSection(id)}
-                  title={!sidebarOpen ? m.label : undefined}
+                  title={!expanded ? m.label : undefined}
                   className={cn(
                     "w-full flex items-center rounded-md text-sm transition-colors duration-150",
-                    sidebarOpen ? "gap-2 px-2.5 py-1.5" : "justify-center px-0 py-2",
+                    expanded ? "gap-2 px-2.5 py-1.5" : "justify-center px-0 py-2",
                     active
                       ? cn(
                           "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
-                          sidebarOpen && "border-l-2 border-[hsl(42,42%,50%)] pl-[calc(0.625rem-2px)]",
+                          expanded && "border-l-2 border-[hsl(42,42%,50%)] pl-[calc(0.625rem-2px)]",
                         )
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 border-l-2 border-transparent",
-                    !sidebarOpen && active && "bg-sidebar-accent text-sidebar-accent-foreground border-l-0",
+                    !expanded && active && "bg-sidebar-accent text-sidebar-accent-foreground border-l-0",
                   )}
                 >
-                  <I className={cn("shrink-0", sidebarOpen ? "h-4 w-4" : "h-5 w-5")} />
-                  {sidebarOpen && <span>{m.label}</span>}
+                  <I className={cn("shrink-0", expanded ? "h-4 w-4" : "h-5 w-5")} />
+                  {expanded && <span>{m.label}</span>}
                 </button>
               );
             })}
@@ -264,46 +292,61 @@ const Index = () => {
           <div className="p-2 border-t border-sidebar-border">
             <button
               onClick={() => supabase.auth.signOut()}
-              title={!sidebarOpen ? "Sair" : undefined}
+              title={!expanded ? "Sair" : undefined}
               className={cn(
                 "w-full flex items-center rounded-md text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60 transition-colors duration-150",
-                sidebarOpen ? "gap-2 px-2.5 py-1.5" : "justify-center px-0 py-2",
+                expanded ? "gap-2 px-2.5 py-1.5" : "justify-center px-0 py-2",
               )}
             >
-              <LogOut className={cn("shrink-0", sidebarOpen ? "h-4 w-4" : "h-5 w-5")} />
-              {sidebarOpen && <span>Sair</span>}
+              <LogOut className={cn("shrink-0", expanded ? "h-4 w-4" : "h-5 w-5")} />
+              {expanded && <span>Sair</span>}
             </button>
           </div>
         </aside>
 
         {/* ── MAIN CONTENT ────────────────────────────────────── */}
         <div className="flex-1 min-w-0">
-          <div className="max-w-5xl mx-auto px-8 py-8">
+          <div className="max-w-5xl mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
 
             {/* Section header */}
-            <header className="mb-6 flex items-start justify-between gap-4">
-              <div>
+            <header className="mb-4 sm:mb-6 flex items-start gap-3">
+
+              {/* Hamburger — mobile only */}
+              <button
+                className="md:hidden shrink-0 mt-0.5 p-1.5 -ml-1 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Abrir menu"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+
+              {/* Title block */}
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
                   <Icon className="h-3.5 w-3.5 text-[hsl(42,42%,50%)]" />
                   <span className="tracking-wide uppercase text-[10px] font-medium">{meta.label}</span>
                 </div>
-                <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                <h2 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground truncate">
                   {section === "today" ? "Hoje" : meta.label}
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="hidden sm:flex items-center gap-2 mt-1">
                   <div className="w-8 h-[2px] rounded-full bg-[hsl(42,42%,50%)] opacity-70" />
                   <p className="text-sm text-muted-foreground">{meta.subtitle}</p>
                 </div>
               </div>
-              {section === "schedule" && (
-                <Input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-auto h-9"
-                />
-              )}
-              <NotificationsBell onOpenTask={() => changeSection("tasks")} />
+
+              {/* Right actions */}
+              <div className="flex items-center gap-2 shrink-0">
+                {section === "schedule" && (
+                  <Input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-auto h-9 text-sm"
+                  />
+                )}
+                <NotificationsBell onOpenTask={() => changeSection("tasks")} />
+              </div>
             </header>
 
             {/* ── Animated content area ── */}
