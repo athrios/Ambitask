@@ -485,7 +485,7 @@ const PublicForm = () => {
                       onChange={(e) => {
                         const masked = maskCnpj(e.target.value);
                         set(masked);
-                        if (cnpjError[f.id]) setCnpjError((p) => ({ ...p, [f.id]: false }));
+                        if (cnpjError[f.id]) setCnpjError((p) => ({ ...p, [f.id]: "" }));
                         if (cnpjData[f.id] && masked.replace(/\D/g, "") !== cnpjData[f.id].cnpj) {
                           setCnpjData((p) => { const n = { ...p }; delete n[f.id]; return n; });
                         }
@@ -498,20 +498,21 @@ const PublicForm = () => {
                     />
                     {cnpjLoading[f.id] && (
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Consultando…
+                        <Loader2 className="h-3 w-3 animate-spin" /> Consultando dados do CNPJ…
                       </span>
                     )}
                   </div>
                   {cnpjError[f.id] && !cnpjLoading[f.id] && (
                     <p className="text-[11px] text-muted-foreground">
-                      Não foi possível consultar este CNPJ. Você pode preencher os campos manualmente.
+                      {cnpjError[f.id] === "invalid"
+                        ? "CNPJ inválido. Verifique os números digitados."
+                        : cnpjError[f.id] === "not_found"
+                        ? "Não encontramos dados públicos para este CNPJ. Você pode continuar mesmo assim."
+                        : "Não foi possível consultar este CNPJ agora. Você pode continuar mesmo assim."}
                     </p>
                   )}
                   {cnpjData[f.id] && !cnpjLoading[f.id] && (
-                    <CnpjPreviewCard
-                      data={cnpjData[f.id]}
-                      hasAutofill={Object.keys(getCnpjAutofillMap(f.options)).length > 0}
-                    />
+                    <CnpjPreviewCard data={cnpjData[f.id]} />
                   )}
                 </div>
               )}
