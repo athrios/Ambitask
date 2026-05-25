@@ -65,6 +65,9 @@ const PublicForm = () => {
   const [loading, setLoading] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [cnpjLoading, setCnpjLoading] = useState<Record<string, boolean>>({});
+  const [cnpjError, setCnpjError] = useState<Record<string, boolean>>({});
+
 
   useEffect(() => {
     document.title = "Formulário";
