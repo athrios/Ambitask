@@ -207,6 +207,101 @@ const PublicForm = () => {
     setSubmitted(true);
   };
 
+  const runCnpjLookup = async (field: Field, rawDigits: string) => {
+    if (rawDigits.length !== 14) return;
+    setCnpjLoading((p) => ({ ...p, [field.id]: true }));
+    setCnpjError((p) => ({ ...p, [field.id]: false }));
+    try {
+      const { data: res, error } = await supabase.functions.invoke("lookup-cnpj", {
+        body: { cnpj: rawDigits },
+      });
+      if (error || !res || (res as { error?: string }).error) {
+        setCnpjError((p) => ({ ...p, [field.id]: true }));
+        return;
+      }
+      const data = (res as { data: CnpjLookupData }).data;
+      const map = getCnpjAutofillMap(field.options);
+      const updates: Record<string, unknown> = {};
+      const targetField = (label: string) => fields.find((x) => x.label === label);
+
+      const writeText = (label: string, value: string | null) => {
+        if (value === null || value === undefined) return;
+        const tf = targetField(label);
+        if (!tf) return;
+        updates[label] = String(value);
+      };
+
+      for (const [key, label] of Object.entries(map)) {
+        const tf = targetField(label);
+        if (!tf) continue;
+        switch (key) {
+          case "company_name": writeText(label, data.company_name); break;
+          case "trade_name": writeText(label, data.trade_name); break;
+          case "status": writeText(label, data.status); break;
+          case "phone": writeText(label, data.phone); break;
+          case "email": writeText(label, data.email); break;
+          case "zip_code": writeText(label, data.zip_code ? maskCep(data.zip_code) : null); break;
+          case "main_cnae":
+            if (data.main_cnae) {
+              const parts = [data.main_cnae.code, data.main_cnae.description].filter(Boolean);
+              writeText(label, parts.join(" - "));
+            }
+            break;
+          case "secondary_cnaes": {
+            const txt = (data.secondary_cnaes || [])
+              .map((c) => [c.code, c.description].filter(Boolean).join(" - "))
+              .filter(Boolean)
+              .join("; ");
+            if (txt) writeText(label, txt);
+            break;
+          }
+          case "address":
+            if (tf.field_type === "address") {
+              const existing = (values[label] ?? {}) as AddressValue;
+              updates[label] = {
+                ...existing,
+                cep: data.zip_code ? maskCep(data.zip_code) : existing.cep ?? "",
+                logradouro: data.address.street ?? existing.logradouro ?? "",
+                numero: data.address.number ?? existing.numero ?? "",
+                complemento: data.address.complement ?? existing.complemento ?? "",
+                bairro: data.address.neighborhood ?? existing.bairro ?? "",
+                cidade: data.city ?? existing.cidade ?? "",
+                uf: data.state ?? existing.uf ?? "",
+              } as AddressValue;
+            } else {
+              const parts = [
+                data.address.street,
+                data.address.number,
+                data.address.complement,
+                data.address.neighborhood,
+              ].filter(Boolean);
+              writeText(label, parts.join(", "));
+            }
+            break;
+          case "city":
+            if (tf.field_type === "state_city") {
+              const existing = (values[label] ?? {}) as { uf?: string; cidade?: string };
+              updates[label] = { ...existing, cidade: data.city ?? "" };
+            } else writeText(label, data.city);
+            break;
+          case "state":
+            if (tf.field_type === "state_city") {
+              const existing = (values[label] ?? {}) as { uf?: string; cidade?: string };
+              updates[label] = { ...existing, uf: data.state ?? "" };
+            } else writeText(label, data.state);
+            break;
+        }
+      }
+      if (Object.keys(updates).length) setValues((p) => ({ ...p, ...updates }));
+    } catch {
+      setCnpjError((p) => ({ ...p, [field.id]: true }));
+    } finally {
+      setCnpjLoading((p) => ({ ...p, [field.id]: false }));
+    }
+  };
+
+
+
 
   if (loading) return <div className="min-h-screen grid place-items-center text-sm text-muted-foreground">Carregando…</div>;
   if (!form) {
