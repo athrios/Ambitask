@@ -457,7 +457,7 @@ export const RequestsPanel = ({ userId }: Props) => {
 
       {open && (
         <Dialog open onOpenChange={(o) => !o && setOpen(null)}>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle asChild>
                 <div><FormPill formId={open.form_id} /></div>
