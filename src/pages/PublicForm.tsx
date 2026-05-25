@@ -107,6 +107,92 @@ type CnpjLookupData = {
 
 
 
+const Dash = () => <span className="text-muted-foreground">—</span>;
+
+const CnpjPreviewCard = ({ data, hasAutofill }: { data: CnpjLookupData; hasAutofill: boolean }) => {
+  const cep = data.zip_code ? maskCep(data.zip_code) : null;
+  const addrLine = [data.address.street, data.address.number, data.address.complement]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className="mt-2 rounded-lg border bg-card p-4 text-sm space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <Building2 className="h-3 w-3" /> Razão Social
+          </div>
+          <div className="text-foreground">{data.company_name || <Dash />}</div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <Sparkles className="h-3 w-3" /> Nome Fantasia
+          </div>
+          <div className="text-foreground">{data.trade_name || <Dash />}</div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <CheckCircle2 className="h-3 w-3" /> Status
+          </div>
+          <div className="text-foreground">{data.status || <Dash />}</div>
+        </div>
+      </div>
+
+      {(addrLine || data.address.neighborhood || cep || data.city || data.state) && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <MapPin className="h-3 w-3" /> Endereço
+          </div>
+          <div className="text-foreground space-y-0.5 mt-0.5">
+            {addrLine && <div>{addrLine}</div>}
+            {(data.address.neighborhood || cep) && (
+              <div className="text-muted-foreground text-xs">
+                {data.address.neighborhood && <>Bairro: {data.address.neighborhood}</>}
+                {data.address.neighborhood && cep && " — "}
+                {cep && <>CEP: {cep}</>}
+              </div>
+            )}
+            {(data.city || data.state) && (
+              <div className="text-muted-foreground text-xs">
+                Cidade: {[data.city, data.state].filter(Boolean).join(" / ")}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {data.main_cnae && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <Activity className="h-3 w-3" /> Atividade Principal
+          </div>
+          <div className="text-foreground">
+            {[data.main_cnae.code, data.main_cnae.description].filter(Boolean).join(" - ")}
+          </div>
+        </div>
+      )}
+
+      {data.secondary_cnaes?.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <ListChecks className="h-3 w-3" /> Atividades Secundárias
+          </div>
+          <ul className="text-foreground list-disc pl-5 space-y-0.5 mt-0.5">
+            {data.secondary_cnaes.map((c, i) => (
+              <li key={i}>{[c.code, c.description].filter(Boolean).join(" - ")}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hasAutofill && (
+        <p className="text-[11px] text-muted-foreground border-t pt-2">
+          Os campos abaixo foram preenchidos automaticamente. Você pode editar à vontade.
+        </p>
+      )}
+    </div>
+  );
+};
+
 const PublicForm = () => {
   const { slug } = useParams<{ slug: string }>();
   const [form, setForm] = useState<Form | null>(null);
