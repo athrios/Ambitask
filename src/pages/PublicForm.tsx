@@ -272,6 +272,41 @@ const PublicForm = () => {
       }
     }
     setSubmitting(true);
+    // Build cnpj_lookup_snapshot from the first visible CNPJ field that has a successful lookup.
+    let snapshot: Record<string, unknown> | null = null;
+    const cnpjFieldsOrdered = fields
+      .filter((x) => x.field_type === "cnpj" && visibility[x.id])
+      .sort((a, b) => a.position - b.position);
+    for (const cf of cnpjFieldsOrdered) {
+      const d = cnpjData[cf.id];
+      if (!d) continue;
+      snapshot = {
+        cnpj: d.cnpj,
+        razao_social: d.company_name,
+        nome_fantasia: d.trade_name,
+        situacao: d.status,
+        endereco: {
+          logradouro: d.address.street,
+          numero: d.address.number,
+          complemento: d.address.complement,
+          bairro: d.address.neighborhood,
+          cidade: d.city,
+          uf: d.state,
+          cep: d.zip_code ? maskCep(d.zip_code) : null,
+        },
+        atividade_principal: d.main_cnae
+          ? [d.main_cnae.code, d.main_cnae.description].filter(Boolean).join(" - ")
+          : null,
+        atividades_secundarias: (d.secondary_cnaes ?? []).map((c) => ({
+          codigo: c.code,
+          descricao: c.description,
+        })),
+        telefone: d.phone,
+        email: d.email,
+        consultado_em: new Date().toISOString(),
+      };
+      break;
+    }
     const { error } = await supabase.from("form_responses").insert({
       form_id: form.id,
       owner_id: form.user_id,
@@ -279,6 +314,7 @@ const PublicForm = () => {
       submitter_name: nameParsed.data,
       data: cleanValues as never,
       status: "recebida",
+      cnpj_lookup_snapshot: snapshot as never,
     });
     setSubmitting(false);
     if (error) return toast.error("Não foi possível enviar. O formulário pode ter sido despublicado.");
