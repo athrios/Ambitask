@@ -746,7 +746,9 @@ const SortableFieldCard = ({
           maxLength={60}
           onBlur={(e) => onUpdate({ add_button_label: e.target.value.trim() || null } as Partial<Field>)}
         />
+      )}
       {f.field_type === "cnpj" && (
+
         <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
           <div className="text-xs font-medium text-foreground">Preenchimento automático</div>
           <p className="text-[11px] text-muted-foreground">
