@@ -76,19 +76,9 @@ function maskCep(v: string): string {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 }
 
-function getCnpjAutofillMap(options: unknown): Record<string, string> {
-  if (options && typeof options === "object" && !Array.isArray(options)) {
-    const a = (options as { autofill?: unknown }).autofill;
-    if (a && typeof a === "object" && !Array.isArray(a)) {
-      const out: Record<string, string> = {};
-      for (const [k, val] of Object.entries(a as Record<string, unknown>)) {
-        if (typeof val === "string" && val.trim()) out[k] = val;
-      }
-      return out;
-    }
-  }
-  return {};
-}
+type CnpjErrorKind = "invalid" | "not_found" | "generic";
+
+
 
 type CnpjLookupData = {
   cnpj: string;
@@ -109,14 +99,21 @@ type CnpjLookupData = {
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
-const CnpjPreviewCard = ({ data, hasAutofill }: { data: CnpjLookupData; hasAutofill: boolean }) => {
+const CnpjPreviewCard = ({ data }: { data: CnpjLookupData }) => {
   const cep = data.zip_code ? maskCep(data.zip_code) : null;
   const addrLine = [data.address.street, data.address.number, data.address.complement]
     .filter(Boolean)
     .join(" ");
   return (
     <div className="mt-2 rounded-lg border bg-card p-4 text-sm space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="space-y-0.5">
+        <div className="text-xs font-medium text-foreground">Dados públicos encontrados para conferência</div>
+        <p className="text-[11px] text-muted-foreground">
+          Revise as informações antes de continuar. Esses dados não preenchem o formulário automaticamente.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
         <div>
           <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
             <Building2 className="h-3 w-3" /> Razão Social
@@ -183,12 +180,6 @@ const CnpjPreviewCard = ({ data, hasAutofill }: { data: CnpjLookupData; hasAutof
           </ul>
         </div>
       )}
-
-      {hasAutofill && (
-        <p className="text-[11px] text-muted-foreground border-t pt-2">
-          Os campos abaixo foram preenchidos automaticamente. Você pode editar à vontade.
-        </p>
-      )}
     </div>
   );
 };
@@ -203,7 +194,7 @@ const PublicForm = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState<Record<string, boolean>>({});
-  const [cnpjError, setCnpjError] = useState<Record<string, boolean>>({});
+  const [cnpjError, setCnpjError] = useState<Record<string, CnpjErrorKind | "">>({});
   const [cnpjData, setCnpjData] = useState<Record<string, CnpjLookupData>>({});
 
 
@@ -281,6 +272,41 @@ const PublicForm = () => {
       }
     }
     setSubmitting(true);
+    // Build cnpj_lookup_snapshot from the first visible CNPJ field that has a successful lookup.
+    let snapshot: Record<string, unknown> | null = null;
+    const cnpjFieldsOrdered = fields
+      .filter((x) => x.field_type === "cnpj" && visibility[x.id])
+      .sort((a, b) => a.position - b.position);
+    for (const cf of cnpjFieldsOrdered) {
+      const d = cnpjData[cf.id];
+      if (!d) continue;
+      snapshot = {
+        cnpj: d.cnpj,
+        razao_social: d.company_name,
+        nome_fantasia: d.trade_name,
+        situacao: d.status,
+        endereco: {
+          logradouro: d.address.street,
+          numero: d.address.number,
+          complemento: d.address.complement,
+          bairro: d.address.neighborhood,
+          cidade: d.city,
+          uf: d.state,
+          cep: d.zip_code ? maskCep(d.zip_code) : null,
+        },
+        atividade_principal: d.main_cnae
+          ? [d.main_cnae.code, d.main_cnae.description].filter(Boolean).join(" - ")
+          : null,
+        atividades_secundarias: (d.secondary_cnaes ?? []).map((c) => ({
+          codigo: c.code,
+          descricao: c.description,
+        })),
+        telefone: d.phone,
+        email: d.email,
+        consultado_em: new Date().toISOString(),
+      };
+      break;
+    }
     const { error } = await supabase.from("form_responses").insert({
       form_id: form.id,
       owner_id: form.user_id,
@@ -288,6 +314,7 @@ const PublicForm = () => {
       submitter_name: nameParsed.data,
       data: cleanValues as never,
       status: "recebida",
+      cnpj_lookup_snapshot: snapshot as never,
     });
     setSubmitting(false);
     if (error) return toast.error("Não foi possível enviar. O formulário pode ter sido despublicado.");
@@ -297,93 +324,24 @@ const PublicForm = () => {
   const runCnpjLookup = async (field: Field, rawDigits: string) => {
     if (rawDigits.length !== 14) return;
     setCnpjLoading((p) => ({ ...p, [field.id]: true }));
-    setCnpjError((p) => ({ ...p, [field.id]: false }));
+    setCnpjError((p) => ({ ...p, [field.id]: "" as CnpjErrorKind | "" }));
     try {
       const { data: res, error } = await supabase.functions.invoke("lookup-cnpj", {
         body: { cnpj: rawDigits },
       });
-      if (error || !res || (res as { error?: string }).error) {
-        setCnpjError((p) => ({ ...p, [field.id]: true }));
+      const errCode = (res as { error?: string } | null)?.error;
+      if (error || !res || errCode) {
+        const kind: CnpjErrorKind =
+          errCode === "invalid_cnpj" ? "invalid" :
+          errCode === "cnpj_not_found" ? "not_found" : "generic";
+        setCnpjError((p) => ({ ...p, [field.id]: kind }));
         setCnpjData((p) => { const n = { ...p }; delete n[field.id]; return n; });
         return;
       }
       const data = (res as { data: CnpjLookupData }).data;
       setCnpjData((p) => ({ ...p, [field.id]: data }));
-      const map = getCnpjAutofillMap(field.options);
-      const updates: Record<string, unknown> = {};
-      const targetField = (label: string) => fields.find((x) => x.label === label);
-
-      const writeText = (label: string, value: string | null) => {
-        if (value === null || value === undefined) return;
-        const tf = targetField(label);
-        if (!tf) return;
-        updates[label] = String(value);
-      };
-
-      for (const [key, label] of Object.entries(map)) {
-        const tf = targetField(label);
-        if (!tf) continue;
-        switch (key) {
-          case "company_name": writeText(label, data.company_name); break;
-          case "trade_name": writeText(label, data.trade_name); break;
-          case "status": writeText(label, data.status); break;
-          case "phone": writeText(label, data.phone); break;
-          case "email": writeText(label, data.email); break;
-          case "zip_code": writeText(label, data.zip_code ? maskCep(data.zip_code) : null); break;
-          case "main_cnae":
-            if (data.main_cnae) {
-              const parts = [data.main_cnae.code, data.main_cnae.description].filter(Boolean);
-              writeText(label, parts.join(" - "));
-            }
-            break;
-          case "secondary_cnaes": {
-            const txt = (data.secondary_cnaes || [])
-              .map((c) => [c.code, c.description].filter(Boolean).join(" - "))
-              .filter(Boolean)
-              .join("; ");
-            if (txt) writeText(label, txt);
-            break;
-          }
-          case "address":
-            if (tf.field_type === "address") {
-              const existing = (values[label] ?? {}) as AddressValue;
-              updates[label] = {
-                ...existing,
-                cep: data.zip_code ? maskCep(data.zip_code) : existing.cep ?? "",
-                logradouro: data.address.street ?? existing.logradouro ?? "",
-                numero: data.address.number ?? existing.numero ?? "",
-                complemento: data.address.complement ?? existing.complemento ?? "",
-                bairro: data.address.neighborhood ?? existing.bairro ?? "",
-                cidade: data.city ?? existing.cidade ?? "",
-                uf: data.state ?? existing.uf ?? "",
-              } as AddressValue;
-            } else {
-              const parts = [
-                data.address.street,
-                data.address.number,
-                data.address.complement,
-                data.address.neighborhood,
-              ].filter(Boolean);
-              writeText(label, parts.join(", "));
-            }
-            break;
-          case "city":
-            if (tf.field_type === "state_city") {
-              const existing = (values[label] ?? {}) as { uf?: string; cidade?: string };
-              updates[label] = { ...existing, cidade: data.city ?? "" };
-            } else writeText(label, data.city);
-            break;
-          case "state":
-            if (tf.field_type === "state_city") {
-              const existing = (values[label] ?? {}) as { uf?: string; cidade?: string };
-              updates[label] = { ...existing, uf: data.state ?? "" };
-            } else writeText(label, data.state);
-            break;
-        }
-      }
-      if (Object.keys(updates).length) setValues((p) => ({ ...p, ...updates }));
     } catch {
-      setCnpjError((p) => ({ ...p, [field.id]: true }));
+      setCnpjError((p) => ({ ...p, [field.id]: "generic" }));
       setCnpjData((p) => { const n = { ...p }; delete n[field.id]; return n; });
     } finally {
       setCnpjLoading((p) => ({ ...p, [field.id]: false }));
@@ -563,7 +521,7 @@ const PublicForm = () => {
                       onChange={(e) => {
                         const masked = maskCnpj(e.target.value);
                         set(masked);
-                        if (cnpjError[f.id]) setCnpjError((p) => ({ ...p, [f.id]: false }));
+                        if (cnpjError[f.id]) setCnpjError((p) => ({ ...p, [f.id]: "" }));
                         if (cnpjData[f.id] && masked.replace(/\D/g, "") !== cnpjData[f.id].cnpj) {
                           setCnpjData((p) => { const n = { ...p }; delete n[f.id]; return n; });
                         }
@@ -576,20 +534,21 @@ const PublicForm = () => {
                     />
                     {cnpjLoading[f.id] && (
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Consultando…
+                        <Loader2 className="h-3 w-3 animate-spin" /> Consultando dados do CNPJ…
                       </span>
                     )}
                   </div>
                   {cnpjError[f.id] && !cnpjLoading[f.id] && (
                     <p className="text-[11px] text-muted-foreground">
-                      Não foi possível consultar este CNPJ. Você pode preencher os campos manualmente.
+                      {cnpjError[f.id] === "invalid"
+                        ? "CNPJ inválido. Verifique os números digitados."
+                        : cnpjError[f.id] === "not_found"
+                        ? "Não encontramos dados públicos para este CNPJ. Você pode continuar mesmo assim."
+                        : "Não foi possível consultar este CNPJ agora. Você pode continuar mesmo assim."}
                     </p>
                   )}
                   {cnpjData[f.id] && !cnpjLoading[f.id] && (
-                    <CnpjPreviewCard
-                      data={cnpjData[f.id]}
-                      hasAutofill={Object.keys(getCnpjAutofillMap(f.options)).length > 0}
-                    />
+                    <CnpjPreviewCard data={cnpjData[f.id]} />
                   )}
                 </div>
               )}

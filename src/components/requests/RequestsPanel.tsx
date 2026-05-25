@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Inbox, ListChecks, Workflow, Trash2, CheckCircle2, Copy, Check } from "lucide-react";
+import { Inbox, ListChecks, Workflow, Trash2, CheckCircle2, Copy, Check, Building2, Sparkles, MapPin, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
@@ -28,6 +29,26 @@ import { colorPill, asColor, type TemplateColor } from "@/components/processes/t
 import { cn } from "@/lib/utils";
 
 interface FormRow { id: string; title: string; color: string }
+interface CnpjSnapshot {
+  cnpj?: string | null;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  situacao?: string | null;
+  endereco?: {
+    logradouro?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    uf?: string | null;
+    cep?: string | null;
+  } | null;
+  atividade_principal?: string | null;
+  atividades_secundarias?: Array<{ codigo?: string | null; descricao?: string | null }> | null;
+  telefone?: string | null;
+  email?: string | null;
+  consultado_em?: string | null;
+}
 interface Response {
   id: string;
   form_id: string;
@@ -37,9 +58,87 @@ interface Response {
   created_at: string;
   converted_task_id: string | null;
   converted_process_id: string | null;
+  cnpj_lookup_snapshot: CnpjSnapshot | null;
 }
 
 interface Props { userId: string }
+
+const maskCnpjStr = (v?: string | null) => {
+  const d = (v ?? "").replace(/\D/g, "").slice(0, 14);
+  if (d.length !== 14) return v ?? "—";
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
+};
+
+const CnpjSnapshotBlock = ({ snapshot }: { snapshot: CnpjSnapshot }) => {
+  const e = snapshot.endereco ?? {};
+  const addrLine = [e.logradouro, e.numero, e.complemento].filter(Boolean).join(", ");
+  const tail = [e.bairro, [e.cidade, e.uf].filter(Boolean).join("/")].filter(Boolean).join(" — ");
+  const fullAddr = [addrLine, tail].filter(Boolean).join(" — ") + (e.cep ? ` — CEP ${e.cep}` : "");
+  const consulted = snapshot.consultado_em
+    ? new Date(snapshot.consultado_em).toLocaleString("pt-BR")
+    : null;
+  const Row = ({
+    icon: Icon,
+    label,
+    value,
+  }: {
+    icon: typeof Building2;
+    label: string;
+    value: React.ReactNode;
+  }) => (
+    <div>
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+        <Icon className="h-3 w-3" /> {label}
+      </div>
+      <div className="text-sm text-foreground">{value ?? <span className="text-muted-foreground">—</span>}</div>
+    </div>
+  );
+  return (
+    <div className="mt-2 rounded-lg border bg-card p-4 space-y-3">
+      <div>
+        <div className="text-xs font-medium text-foreground">Dados públicos do CNPJ consultado</div>
+        {consulted && (
+          <p className="text-[11px] text-muted-foreground">Consultado em {consulted}</p>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
+        <Row icon={Building2} label="CNPJ" value={maskCnpjStr(snapshot.cnpj)} />
+        <Row icon={Building2} label="Razão social" value={snapshot.razao_social || null} />
+        <Row icon={Sparkles} label="Nome fantasia" value={snapshot.nome_fantasia || null} />
+        <Row icon={CheckCircle2} label="Situação" value={snapshot.situacao || null} />
+      </div>
+      {fullAddr.trim() && (
+        <div className="border-t pt-3">
+          <Row icon={MapPin} label="Endereço" value={fullAddr} />
+        </div>
+      )}
+      {snapshot.atividade_principal && (
+        <div className="border-t pt-3">
+          <Row icon={Activity} label="Atividade principal" value={snapshot.atividade_principal} />
+        </div>
+      )}
+      {snapshot.atividades_secundarias && snapshot.atividades_secundarias.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <ListChecks className="h-3 w-3" /> Atividades secundárias
+          </div>
+          <ul className="text-sm text-foreground list-disc pl-5 mt-0.5 space-y-0.5">
+            {snapshot.atividades_secundarias.map((c, i) => (
+              <li key={i}>{[c.codigo, c.descricao].filter(Boolean).join(" - ")}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {(snapshot.telefone || snapshot.email) && (
+        <div className="border-t pt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {snapshot.telefone && <Row icon={Building2} label="Telefone" value={snapshot.telefone} />}
+          {snapshot.email && <Row icon={Building2} label="E-mail" value={snapshot.email} />}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -496,6 +595,9 @@ export const RequestsPanel = ({ userId }: Props) => {
                 })}
                 {Object.keys(open.data ?? {}).length === 0 && (
                   <p className="text-xs text-muted-foreground">Sem campos preenchidos.</p>
+                )}
+                {open.cnpj_lookup_snapshot && (
+                  <CnpjSnapshotBlock snapshot={open.cnpj_lookup_snapshot} />
                 )}
               </div>
             </div>
