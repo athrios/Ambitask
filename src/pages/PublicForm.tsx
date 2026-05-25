@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Building2, Sparkles, MapPin, Activity, ListChecks } from "lucide-react";
 import { submitterNameSchema, publicTextAnswerSchema } from "@/lib/validation";
 import { StateCityField } from "@/components/forms/fields/StateCityField";
 import { PartnerGroupField } from "@/components/forms/fields/PartnerGroupField";
@@ -107,6 +107,92 @@ type CnpjLookupData = {
 
 
 
+const Dash = () => <span className="text-muted-foreground">—</span>;
+
+const CnpjPreviewCard = ({ data, hasAutofill }: { data: CnpjLookupData; hasAutofill: boolean }) => {
+  const cep = data.zip_code ? maskCep(data.zip_code) : null;
+  const addrLine = [data.address.street, data.address.number, data.address.complement]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className="mt-2 rounded-lg border bg-card p-4 text-sm space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <Building2 className="h-3 w-3" /> Razão Social
+          </div>
+          <div className="text-foreground">{data.company_name || <Dash />}</div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <Sparkles className="h-3 w-3" /> Nome Fantasia
+          </div>
+          <div className="text-foreground">{data.trade_name || <Dash />}</div>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <CheckCircle2 className="h-3 w-3" /> Status
+          </div>
+          <div className="text-foreground">{data.status || <Dash />}</div>
+        </div>
+      </div>
+
+      {(addrLine || data.address.neighborhood || cep || data.city || data.state) && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <MapPin className="h-3 w-3" /> Endereço
+          </div>
+          <div className="text-foreground space-y-0.5 mt-0.5">
+            {addrLine && <div>{addrLine}</div>}
+            {(data.address.neighborhood || cep) && (
+              <div className="text-muted-foreground text-xs">
+                {data.address.neighborhood && <>Bairro: {data.address.neighborhood}</>}
+                {data.address.neighborhood && cep && " — "}
+                {cep && <>CEP: {cep}</>}
+              </div>
+            )}
+            {(data.city || data.state) && (
+              <div className="text-muted-foreground text-xs">
+                Cidade: {[data.city, data.state].filter(Boolean).join(" / ")}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {data.main_cnae && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <Activity className="h-3 w-3" /> Atividade Principal
+          </div>
+          <div className="text-foreground">
+            {[data.main_cnae.code, data.main_cnae.description].filter(Boolean).join(" - ")}
+          </div>
+        </div>
+      )}
+
+      {data.secondary_cnaes?.length > 0 && (
+        <div className="border-t pt-3">
+          <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <ListChecks className="h-3 w-3" /> Atividades Secundárias
+          </div>
+          <ul className="text-foreground list-disc pl-5 space-y-0.5 mt-0.5">
+            {data.secondary_cnaes.map((c, i) => (
+              <li key={i}>{[c.code, c.description].filter(Boolean).join(" - ")}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hasAutofill && (
+        <p className="text-[11px] text-muted-foreground border-t pt-2">
+          Os campos abaixo foram preenchidos automaticamente. Você pode editar à vontade.
+        </p>
+      )}
+    </div>
+  );
+};
+
 const PublicForm = () => {
   const { slug } = useParams<{ slug: string }>();
   const [form, setForm] = useState<Form | null>(null);
@@ -118,6 +204,7 @@ const PublicForm = () => {
   const [submitting, setSubmitting] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState<Record<string, boolean>>({});
   const [cnpjError, setCnpjError] = useState<Record<string, boolean>>({});
+  const [cnpjData, setCnpjData] = useState<Record<string, CnpjLookupData>>({});
 
 
   useEffect(() => {
@@ -217,9 +304,11 @@ const PublicForm = () => {
       });
       if (error || !res || (res as { error?: string }).error) {
         setCnpjError((p) => ({ ...p, [field.id]: true }));
+        setCnpjData((p) => { const n = { ...p }; delete n[field.id]; return n; });
         return;
       }
       const data = (res as { data: CnpjLookupData }).data;
+      setCnpjData((p) => ({ ...p, [field.id]: data }));
       const map = getCnpjAutofillMap(field.options);
       const updates: Record<string, unknown> = {};
       const targetField = (label: string) => fields.find((x) => x.label === label);
@@ -295,6 +384,7 @@ const PublicForm = () => {
       if (Object.keys(updates).length) setValues((p) => ({ ...p, ...updates }));
     } catch {
       setCnpjError((p) => ({ ...p, [field.id]: true }));
+      setCnpjData((p) => { const n = { ...p }; delete n[field.id]; return n; });
     } finally {
       setCnpjLoading((p) => ({ ...p, [field.id]: false }));
     }
@@ -471,8 +561,12 @@ const PublicForm = () => {
                       value={maskCnpj((v as string) ?? "")}
                       maxLength={18}
                       onChange={(e) => {
-                        set(maskCnpj(e.target.value));
+                        const masked = maskCnpj(e.target.value);
+                        set(masked);
                         if (cnpjError[f.id]) setCnpjError((p) => ({ ...p, [f.id]: false }));
+                        if (cnpjData[f.id] && masked.replace(/\D/g, "") !== cnpjData[f.id].cnpj) {
+                          setCnpjData((p) => { const n = { ...p }; delete n[f.id]; return n; });
+                        }
                       }}
                       onBlur={(e) => {
                         const digits = e.target.value.replace(/\D/g, "");
@@ -490,6 +584,12 @@ const PublicForm = () => {
                     <p className="text-[11px] text-muted-foreground">
                       Não foi possível consultar este CNPJ. Você pode preencher os campos manualmente.
                     </p>
+                  )}
+                  {cnpjData[f.id] && !cnpjLoading[f.id] && (
+                    <CnpjPreviewCard
+                      data={cnpjData[f.id]}
+                      hasAutofill={Object.keys(getCnpjAutofillMap(f.options)).length > 0}
+                    />
                   )}
                 </div>
               )}
