@@ -194,7 +194,7 @@ const PublicForm = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState<Record<string, boolean>>({});
-  const [cnpjError, setCnpjError] = useState<Record<string, boolean>>({});
+  const [cnpjError, setCnpjError] = useState<Record<string, CnpjErrorKind | "">>({});
   const [cnpjData, setCnpjData] = useState<Record<string, CnpjLookupData>>({});
 
 
