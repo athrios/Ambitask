@@ -56,6 +56,57 @@ interface Field {
   conditional_logic: FieldCondition | null;
 }
 
+function maskCnpj(v: string): string {
+  const d = v.replace(/\D/g, "").slice(0, 14);
+  const p1 = d.slice(0, 2);
+  const p2 = d.slice(2, 5);
+  const p3 = d.slice(5, 8);
+  const p4 = d.slice(8, 12);
+  const p5 = d.slice(12, 14);
+  let out = p1;
+  if (d.length > 2) out += "." + p2;
+  if (d.length > 5) out += "." + p3;
+  if (d.length > 8) out += "/" + p4;
+  if (d.length > 12) out += "-" + p5;
+  return out;
+}
+
+function maskCep(v: string): string {
+  const d = (v ?? "").replace(/\D/g, "").slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+}
+
+function getCnpjAutofillMap(options: unknown): Record<string, string> {
+  if (options && typeof options === "object" && !Array.isArray(options)) {
+    const a = (options as { autofill?: unknown }).autofill;
+    if (a && typeof a === "object" && !Array.isArray(a)) {
+      const out: Record<string, string> = {};
+      for (const [k, val] of Object.entries(a as Record<string, unknown>)) {
+        if (typeof val === "string" && val.trim()) out[k] = val;
+      }
+      return out;
+    }
+  }
+  return {};
+}
+
+type CnpjLookupData = {
+  cnpj: string;
+  company_name: string | null;
+  trade_name: string | null;
+  status: string | null;
+  address: { street: string | null; number: string | null; complement: string | null; neighborhood: string | null };
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  main_cnae: { code: string | null; description: string | null } | null;
+  secondary_cnaes: Array<{ code: string | null; description: string | null }>;
+  phone: string | null;
+  email: string | null;
+};
+
+
+
 const PublicForm = () => {
   const { slug } = useParams<{ slug: string }>();
   const [form, setForm] = useState<Form | null>(null);
