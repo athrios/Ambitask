@@ -28,6 +28,26 @@ import { colorPill, asColor, type TemplateColor } from "@/components/processes/t
 import { cn } from "@/lib/utils";
 
 interface FormRow { id: string; title: string; color: string }
+interface CnpjSnapshot {
+  cnpj?: string | null;
+  razao_social?: string | null;
+  nome_fantasia?: string | null;
+  situacao?: string | null;
+  endereco?: {
+    logradouro?: string | null;
+    numero?: string | null;
+    complemento?: string | null;
+    bairro?: string | null;
+    cidade?: string | null;
+    uf?: string | null;
+    cep?: string | null;
+  } | null;
+  atividade_principal?: string | null;
+  atividades_secundarias?: Array<{ codigo?: string | null; descricao?: string | null }> | null;
+  telefone?: string | null;
+  email?: string | null;
+  consultado_em?: string | null;
+}
 interface Response {
   id: string;
   form_id: string;
@@ -37,6 +57,7 @@ interface Response {
   created_at: string;
   converted_task_id: string | null;
   converted_process_id: string | null;
+  cnpj_lookup_snapshot: CnpjSnapshot | null;
 }
 
 interface Props { userId: string }
