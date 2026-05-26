@@ -24,18 +24,18 @@ export interface Partner {
 }
 
 const ESTADO_CIVIL = [
-  "SOLTEIRO(A)",
-  "CASADO(A)",
-  "UNIÃO ESTÁVEL",
-  "DIVORCIADO(A)",
-  "VIÚVO(A)",
-  "SEPARADO JUDICIALMENTE",
+  "Solteiro(a)",
+  "Casado(a)",
+  "União Estável",
+  "Divorciado(a)",
+  "Viúvo(a)",
+  "Separado Judicialmente",
 ];
 const REGIME_BENS = [
-  "COMUNHÃO PARCIAL",
-  "COMUNHÃO UNIVERSAL",
-  "SEPARAÇÃO TOTAL",
-  "PARTICIPAÇÃO FINAL NOS AQUESTOS",
+  "Comunhão parcial",
+  "Comunhão universal",
+  "Separação total",
+  "Participação final nos aquestos",
 ];
 const ETNIA = ["Branca", "Preta", "Parda", "Amarela", "Indígena"];
 
@@ -104,7 +104,7 @@ export const PartnerGroupField = ({
               </Field>
             </div>
 
-            <Field label="Naturalidade (UF / Cidade)">
+            <Field label="Naturalidade">
               <StateCityField
                 value={p.naturalidade}
                 onChange={(v) => update(i, { naturalidade: v })}
