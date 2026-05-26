@@ -12,6 +12,7 @@ import { ProcessesPanel } from "@/components/processes/ProcessesPanel";
 import { FormsPanel } from "@/components/forms/FormsPanel";
 import { RequestsPanel } from "@/components/requests/RequestsPanel";
 import { AgendaPanel } from "@/components/agenda/AgendaPanel";
+import { ClientsPanel } from "@/components/clients/ClientsPanel";
 import { GlobalSearch } from "@/components/shared/GlobalSearch";
 import { WorkspaceSwitcher } from "@/components/workspace/WorkspaceSwitcher";
 import { WorkspacesPanel } from "@/components/workspace/WorkspacesPanel";
@@ -33,6 +34,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 type Section =
   | "today"
   | "agenda"
+  | "clients"
   | "schedule"
   | "tasks"
   | "processes"
@@ -55,6 +58,7 @@ const SECTION_META: Record<
 > = {
   today:     { label: "Hoje",          icon: Sun,           subtitle: "O que precisa acontecer hoje." },
   agenda:    { label: "Agenda",        icon: CalendarRange,  subtitle: "Visão de tarefas e processos por dia, semana e mês." },
+  clients:   { label: "Clientes",      icon: Users,          subtitle: "Cadastro de clientes do ambiente." },
   schedule:  { label: "Cronograma",    icon: CalendarClock,  subtitle: "Sua agenda do dia, bloco a bloco." },
   tasks:     { label: "Tarefas",       icon: ListChecks,     subtitle: "Organize suas tarefas por data, status e prioridade." },
   processes: { label: "Processos",     icon: Workflow,       subtitle: "Processos recorrentes em execução." },
@@ -67,6 +71,7 @@ const SECTION_META: Record<
 const SECTION_MODULE: Record<Exclude<Section, "settings">, ModuleKey> = {
   today:     "hoje",
   agenda:    "hoje",
+  clients:   "clientes",
   schedule:  "cronograma",
   tasks:     "tarefas",
   processes: "processos",
@@ -146,7 +151,7 @@ const Index = () => {
   }, [user, date, section, workspaceId]);
 
   const allSections: Section[] = [
-    "today", "agenda", "schedule", "tasks", "processes",
+    "today", "agenda", "clients", "schedule", "tasks", "processes",
     "forms", "requests", "done", "settings",
   ];
 
@@ -365,6 +370,11 @@ const Index = () => {
               {section === "agenda" && (
                 <RequireModule module="hoje" onDenied={() => changeSection("today")}>
                   <AgendaPanel userId={user.id} />
+                </RequireModule>
+              )}
+              {section === "clients" && (
+                <RequireModule module="clientes" onDenied={() => changeSection("today")}>
+                  <ClientsPanel userId={user.id} />
                 </RequireModule>
               )}
               {section === "schedule" && (
