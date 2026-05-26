@@ -689,6 +689,34 @@ export const ClientForm = ({ workspaceId, userId, initial, onSaved, onCancel }: 
         </section>
       )}
 
+      {/* QSA / Sócios */}
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">Sócios / QSA</h3>
+        <p className="text-xs text-muted-foreground">
+          Quadro societário do cliente. Cada sócio guarda seus próprios dados individualmente.
+        </p>
+        <PartnerGroupField
+          value={
+            ((draft.custom_fields.find((c) => c.source === "qsa")?.data as Partner[]) ?? []) as Partner[]
+          }
+          onChange={(partners) => {
+            setDraft((d) => {
+              const idx = d.custom_fields.findIndex((c) => c.source === "qsa");
+              const entry: CustomField = {
+                source: "qsa",
+                label: "Sócios / QSA",
+                value: `${partners.length} sócio(s)`,
+                data: partners,
+              };
+              const next = [...d.custom_fields];
+              if (idx >= 0) next[idx] = entry;
+              else next.push(entry);
+              return { ...d, custom_fields: next };
+            });
+          }}
+        />
+      </section>
+
       {/* Custom fields (client-specific) */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
