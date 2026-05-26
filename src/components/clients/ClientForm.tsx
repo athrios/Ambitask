@@ -237,7 +237,7 @@ export const ClientForm = ({ workspaceId, userId, initial, onSaved, onCancel }: 
     if (isEdit) {
       const { data, error } = await supabase
         .from("clients")
-        .update(payload)
+        .update(payload as never)
         .eq("id", initial!.id)
         .select("*")
         .single();
@@ -248,7 +248,7 @@ export const ClientForm = ({ workspaceId, userId, initial, onSaved, onCancel }: 
     } else {
       const { data, error } = await supabase
         .from("clients")
-        .insert(payload)
+        .insert(payload as never)
         .select("*")
         .single();
       setSaving(false);
