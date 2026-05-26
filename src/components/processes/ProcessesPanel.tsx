@@ -1645,7 +1645,7 @@ const ProcessTableDetail = ({
     if (status === "nao_iniciado" && hasAnyValue(draft)) nextStatus = "em_andamento";
     const { error } = await supabase
       .from("processes")
-      .update({ table_data: draft as Json, status: nextStatus })
+      .update({ table_data: draft as unknown as Json, status: nextStatus })
       .eq("id", process.id);
     if (error) return toast.error(error.message);
     setStatus(nextStatus);
