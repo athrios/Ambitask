@@ -91,9 +91,9 @@ const getExtraValue = (r: ClientRecord, extraId: string): string => {
 };
 
 export const ClientsPanel = ({ userId }: { userId: string }) => {
-  const { workspaceId, can } = useWorkspace();
+  const { workspaceId, workspaces, can } = useWorkspace();
   const { settings, save: saveSettings, reload: reloadSettings } = useClientSettings(workspaceId);
-  const [rows, setRows] = useState<ClientRecord[]>([]);
+  const [rows, setRows] = useState<(ClientRecord & { _workspace_name?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ClientRecord | null>(null);
@@ -109,18 +109,47 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
   const load = useCallback(async () => {
     if (!workspaceId) return;
     setLoading(true);
+
     const { data, error } = await supabase
       .from("clients")
       .select("*")
       .eq("workspace_id", workspaceId)
       .order("name", { ascending: true });
+
     if (error) {
       toast.error("Erro ao carregar clientes");
-    } else {
-      setRows((data ?? []) as unknown as ClientRecord[]);
+      setLoading(false);
+      return;
     }
+
+    let all: (ClientRecord & { _workspace_name?: string })[] =
+      (data ?? []) as unknown as ClientRecord[];
+
+    // Also load clients from other workspaces the user owns that share 'clientes'
+    const sharedSources = workspaces.filter(
+      (w) => w.id !== workspaceId && w.shared_modules?.includes("clientes"),
+    );
+    for (const ws of sharedSources) {
+      const { data: shared } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("workspace_id", ws.id)
+        .order("name", { ascending: true });
+      if (shared) {
+        all = [
+          ...all,
+          ...(shared as unknown as ClientRecord[]).map((c) => ({
+            ...c,
+            _workspace_name: ws.name,
+          })),
+        ];
+      }
+    }
+
+    all.sort((a, b) => a.name.localeCompare(b.name));
+    setRows(all);
     setLoading(false);
-  }, [workspaceId]);
+  }, [workspaceId, workspaces]);
 
   useEffect(() => {
     load();
@@ -236,6 +265,12 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
                       <Badge variant="secondary" className="text-[10px]">
                         {TYPE_LABEL[r.client_type]}
                       </Badge>
+                      {r._workspace_name && (
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                          <span className="opacity-60">↗</span>
+                          {r._workspace_name}
+                        </Badge>
+                      )}
                     </div>
                     <div className="space-y-1">
                       {orderedKeys.map(({ key, isExtra, extraId }) => {
@@ -265,7 +300,7 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {canEdit && (
+                    {canEdit && !r._workspace_name && (
                       <button
                         type="button"
                         onClick={() => setEditing(r)}
@@ -276,7 +311,7 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {canDelete && (
+                    {canDelete && !r._workspace_name && (
                       <button
                         type="button"
                         onClick={() => setToDelete(r)}
