@@ -42,6 +42,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 type Section =
   | "today"
   | "agenda"
+  | "clients"
   | "schedule"
   | "tasks"
   | "processes"
@@ -56,6 +57,7 @@ const SECTION_META: Record<
 > = {
   today:     { label: "Hoje",          icon: Sun,           subtitle: "O que precisa acontecer hoje." },
   agenda:    { label: "Agenda",        icon: CalendarRange,  subtitle: "Visão de tarefas e processos por dia, semana e mês." },
+  clients:   { label: "Clientes",      icon: Users,          subtitle: "Cadastro de clientes do ambiente." },
   schedule:  { label: "Cronograma",    icon: CalendarClock,  subtitle: "Sua agenda do dia, bloco a bloco." },
   tasks:     { label: "Tarefas",       icon: ListChecks,     subtitle: "Organize suas tarefas por data, status e prioridade." },
   processes: { label: "Processos",     icon: Workflow,       subtitle: "Processos recorrentes em execução." },
@@ -68,6 +70,7 @@ const SECTION_META: Record<
 const SECTION_MODULE: Record<Exclude<Section, "settings">, ModuleKey> = {
   today:     "hoje",
   agenda:    "hoje",
+  clients:   "clientes",
   schedule:  "cronograma",
   tasks:     "tarefas",
   processes: "processos",
