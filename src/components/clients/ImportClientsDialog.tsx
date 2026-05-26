@@ -20,7 +20,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Upload, AlertTriangle, CheckCircle2, Plus } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import Papa from "papaparse";
 import {
   isValidCpf,
@@ -36,6 +37,7 @@ interface Props {
   workspaceId: string;
   userId: string;
   extraFields: ExtraFieldDef[];
+  onCreateExtra?: (label: string) => Promise<ExtraFieldDef>;
   onImported: () => void;
 }
 
@@ -89,47 +91,55 @@ const normalize = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
+const HEADER_DICT: Record<string, StandardKey> = {
+  tipo: "client_type",
+  tipodecliente: "client_type",
+  nome: "name",
+  razaosocial: "name",
+  nomerazaosocial: "name",
+  nomefantasia: "trade_name",
+  fantasia: "trade_name",
+  cpf: "document_cpf",
+  cnpj: "document_cnpj",
+  documento: "document_estrangeiro",
+  passaporte: "document_estrangeiro",
+  celular: "phone",
+  telefone: "phone",
+  fone: "phone",
+  whatsapp: "phone",
+  email: "email",
+  cep: "cep",
+  logradouro: "logradouro",
+  endereco: "logradouro",
+  rua: "logradouro",
+  numero: "numero",
+  num: "numero",
+  complemento: "complemento",
+  bairro: "bairro",
+  cidade: "cidade",
+  municipio: "cidade",
+  uf: "uf",
+  estado: "uf",
+  pais: "pais",
+  observacoes: "notes",
+  obs: "notes",
+  notas: "notes",
+};
+
 const guessMapping = (header: string, extras: ExtraFieldDef[]): MappingValue => {
   const n = normalize(header);
-  const dict: Record<string, StandardKey> = {
-    tipo: "client_type",
-    tipodecliente: "client_type",
-    nome: "name",
-    razaosocial: "name",
-    nomerazaosocial: "name",
-    nomefantasia: "trade_name",
-    fantasia: "trade_name",
-    cpf: "document_cpf",
-    cnpj: "document_cnpj",
-    documento: "document_estrangeiro",
-    passaporte: "document_estrangeiro",
-    celular: "phone",
-    telefone: "phone",
-    fone: "phone",
-    whatsapp: "phone",
-    email: "email",
-    cep: "cep",
-    logradouro: "logradouro",
-    endereco: "logradouro",
-    rua: "logradouro",
-    numero: "numero",
-    num: "numero",
-    complemento: "complemento",
-    bairro: "bairro",
-    cidade: "cidade",
-    municipio: "cidade",
-    uf: "uf",
-    estado: "uf",
-    pais: "pais",
-    observacoes: "notes",
-    obs: "notes",
-    notas: "notes",
-  };
-  if (dict[n]) return `std:${dict[n]}`;
+  if (HEADER_DICT[n]) return `std:${HEADER_DICT[n]}`;
   for (const ex of extras) {
     if (normalize(ex.label) === n) return `extra:${ex.id}`;
   }
   return "std:ignore";
+};
+
+const headerHasKnownField = (header: string, extras: ExtraFieldDef[]): boolean => {
+  const n = normalize(header);
+  if (!n) return true;
+  if (HEADER_DICT[n]) return true;
+  return extras.some((ex) => normalize(ex.label) === n);
 };
 
 const parseClientType = (raw: string): ClientType | null => {
@@ -160,6 +170,7 @@ export const ImportClientsDialog = ({
   workspaceId,
   userId,
   extraFields,
+  onCreateExtra,
   onImported,
 }: Props) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -169,6 +180,30 @@ export const ImportClientsDialog = ({
   const [defaultType, setDefaultType] = useState<ClientType>("pessoa_fisica");
   const [progress, setProgress] = useState(0);
   const [importing, setImporting] = useState(false);
+  const [creatingExtra, setCreatingExtra] = useState<number | null>(null);
+
+  const handleCreateExtra = async (index: number) => {
+    if (!onCreateExtra) return;
+    const header = (headers[index] ?? "").trim();
+    if (!header) return;
+    const n = normalize(header);
+    const existing = extraFields.find((e) => normalize(e.label) === n);
+    if (existing) {
+      setMapping((m) => ({ ...m, [index]: `extra:${existing.id}` }));
+      toast.info(`Campo Extra "${existing.label}" já existe; selecionado.`);
+      return;
+    }
+    setCreatingExtra(index);
+    try {
+      const novo = await onCreateExtra(header);
+      setMapping((m) => ({ ...m, [index]: `extra:${novo.id}` }));
+      toast.success(`Campo Extra criado: ${novo.label}`);
+    } catch (e) {
+      toast.error("Erro ao criar Campo Extra: " + (e as Error).message);
+    } finally {
+      setCreatingExtra(null);
+    }
+  };
 
   const reset = () => {
     setStep(1);
@@ -426,35 +461,62 @@ export const ImportClientsDialog = ({
             </div>
 
             <div className="border rounded-md divide-y">
-              {headers.map((h, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr] gap-3 items-center px-3 py-2">
-                  <div className="text-sm font-medium truncate">{h || `Coluna ${i + 1}`}</div>
-                  <Select
-                    value={mapping[i] ?? "std:ignore"}
-                    onValueChange={(v) => setMapping((m) => ({ ...m, [i]: v as MappingValue }))}
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STANDARD_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={`std:${o.value}`}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                      {extraFields.length > 0 && (
-                        <>
-                          {extraFields.map((ex) => (
-                            <SelectItem key={ex.id} value={`extra:${ex.id}`}>
-                              Extra: {ex.label || "(sem nome)"}
+              <TooltipProvider delayDuration={250}>
+                {headers.map((h, i) => {
+                  const known = headerHasKnownField(h, extraFields);
+                  const current = mapping[i] ?? "std:ignore";
+                  const showCreate =
+                    !!onCreateExtra && !known && current === "std:ignore" && !!h.trim();
+                  return (
+                    <div key={i} className="grid grid-cols-[1fr_1fr] gap-3 items-center px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium truncate">
+                          {h || `Coluna ${i + 1}`}
+                        </span>
+                        {showCreate && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-[11px] gap-1 shrink-0"
+                                disabled={creatingExtra === i}
+                                onClick={() => handleCreateExtra(i)}
+                              >
+                                <Plus className="h-3 w-3" />
+                                Extra
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Criar Campo Extra com este nome</TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                      <Select
+                        value={current}
+                        onValueChange={(v) => setMapping((m) => ({ ...m, [i]: v as MappingValue }))}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STANDARD_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={`std:${o.value}`}>
+                              {o.label}
                             </SelectItem>
                           ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+                          {extraFields.length > 0 &&
+                            extraFields.map((ex) => (
+                              <SelectItem key={ex.id} value={`extra:${ex.id}`}>
+                                Extra: {ex.label || "(sem nome)"}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </TooltipProvider>
             </div>
 
             <div className="flex justify-between">

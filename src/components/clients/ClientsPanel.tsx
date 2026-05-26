@@ -397,6 +397,22 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
             workspaceId={workspaceId}
             userId={userId}
             extraFields={settings.extra_fields as ExtraFieldDef[]}
+            onCreateExtra={async (label) => {
+              const novo: ExtraFieldDef = {
+                id: crypto.randomUUID(),
+                label: label.trim(),
+                type: "text",
+                required: false,
+              };
+              const next = {
+                ...settings,
+                extra_fields: [...settings.extra_fields, novo],
+              };
+              const { error } = await saveSettings(next, userId);
+              if (error) throw error;
+              await reloadSettings();
+              return novo;
+            }}
             onImported={() => {
               setImportOpen(false);
               load();
