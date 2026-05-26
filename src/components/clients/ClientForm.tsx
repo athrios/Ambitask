@@ -217,7 +217,7 @@ export const ClientForm = ({ workspaceId, userId, initial, onSaved, onCancel }: 
       return;
     }
     setSaving(true);
-    const payload = {
+    const payload: Record<string, unknown> = {
       workspace_id: workspaceId,
       user_id: userId,
       client_type: draft.client_type,
@@ -229,8 +229,8 @@ export const ClientForm = ({ workspaceId, userId, initial, onSaved, onCancel }: 
       trade_name: draft.trade_name.trim(),
       email: draft.email.trim(),
       phone: draft.phone.trim(),
-      address: draft.address,
-      cnpj_lookup_snapshot: draft.cnpj_lookup_snapshot,
+      address: draft.address as unknown as Record<string, unknown>,
+      cnpj_lookup_snapshot: draft.cnpj_lookup_snapshot as unknown,
       notes: draft.notes,
       custom_fields: draft.custom_fields.filter((f) => f.label.trim() || f.value.trim()),
     };
