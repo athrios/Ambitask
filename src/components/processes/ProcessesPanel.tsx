@@ -25,6 +25,7 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { NoteField } from "@/components/shared/NoteField";
 import { ViewSwitcher, type ViewMode } from "@/components/shared/ViewSwitcher";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { CopyButton } from "@/components/shared/CopyButton";
 import { PROCESS_STATUS, type ProcessStatus } from "@/lib/taskTokens";
 import { logActivity } from "@/lib/activityLog";
 import { useWorkspace } from "@/hooks/useWorkspace";
