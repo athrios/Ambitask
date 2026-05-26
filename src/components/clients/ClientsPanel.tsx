@@ -21,7 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { Users, Plus, Search, Trash2, Pencil, Copy, Check, Settings, Upload } from "lucide-react";
+import { Users, Plus, Search, Trash2, Pencil, Settings, Upload } from "lucide-react";
+import { CopyButton } from "@/components/shared/CopyButton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ClientForm, type ClientRecord, type CustomField } from "./ClientForm";
