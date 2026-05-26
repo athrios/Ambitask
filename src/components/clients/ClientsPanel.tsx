@@ -245,11 +245,13 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
             const orphanCustoms: CustomField[] = (r.custom_fields ?? []).filter((c) => {
               if (!c) return false;
               if (c.source === "extra") {
-                // only show as orphan if its definition no longer exists
                 return !c.extra_id || !knownExtraIds.has(c.extra_id);
               }
+              if (c.source === "qsa") return false;
               return c.label || c.value;
             });
+            const qsaEntry = (r.custom_fields ?? []).find((c) => c?.source === "qsa");
+            const qsaCount = Array.isArray(qsaEntry?.data) ? (qsaEntry!.data as unknown[]).length : 0;
             return (
               <div
                 key={r.id}
@@ -285,6 +287,9 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
                           value={c.value || ""}
                         />
                       ))}
+                      {qsaCount > 0 && (
+                        <Field label="Sócios / QSA" value={`${qsaCount} sócio(s)`} />
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">

@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { CheckCircle2, Loader2, Building2, Sparkles, MapPin, Activity, ListChecks } from "lucide-react";
 import { submitterNameSchema, publicTextAnswerSchema } from "@/lib/validation";
 import { StateCityField } from "@/components/forms/fields/StateCityField";
-import { PartnerGroupField } from "@/components/forms/fields/PartnerGroupField";
+import { PartnerGroupField, validatePartnerGroup, type Partner } from "@/components/forms/fields/PartnerGroupField";
+import { resolvePartnerSchema } from "@/components/forms/fields/partnerSchema";
 import { AddressField, type AddressValue } from "@/components/forms/fields/AddressField";
 import { parseCondition, evaluateCondition, type FieldCondition } from "@/lib/formConditions";
 
@@ -260,6 +261,11 @@ const PublicForm = () => {
           return toast.error(`Preencha o endereço em "${f.label}" (CEP e número)`);
         }
       }
+      if (f.field_type === "partner_group" && Array.isArray(v)) {
+        const schema = resolvePartnerSchema(f.options);
+        const err = validatePartnerGroup(v as Partner[], schema);
+        if (err) return toast.error(`${f.label}: ${err}`);
+      }
       if (typeof v === "string") {
         const r = publicTextAnswerSchema.safeParse(v);
         if (!r.success) return toast.error(`${f.label}: ${r.error.issues[0]?.message ?? "inválido"}`);
@@ -501,6 +507,7 @@ const PublicForm = () => {
                   value={(Array.isArray(v) ? v : []) as never}
                   onChange={(val) => set(val)}
                   addButtonLabel={f.add_button_label?.trim() || undefined}
+                  fieldOptions={f.options}
                 />
               )}
               {f.field_type === "address" && (
