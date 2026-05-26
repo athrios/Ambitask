@@ -279,7 +279,9 @@ export const ClientForm = ({ workspaceId, userId, initial, onSaved, onCancel }: 
       address: draft.address as unknown as Record<string, unknown>,
       cnpj_lookup_snapshot: draft.cnpj_lookup_snapshot as unknown,
       notes: draft.notes,
-      custom_fields: draft.custom_fields.filter((f) => f.label.trim() || f.value.trim()),
+      custom_fields: draft.custom_fields.filter(
+        (f) => f.source === "extra" || f.label.trim() || f.value.trim(),
+      ),
     };
     if (isEdit) {
       const { data, error } = await supabase
