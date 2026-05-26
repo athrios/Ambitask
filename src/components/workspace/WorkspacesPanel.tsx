@@ -446,18 +446,11 @@ const InvitesTab = ({ workspaceId, workspaceName }: { workspaceId: string; works
   const resend = async (invite: Invite) => {
     if (!user) return;
     setResendingId(invite.id);
-    const inviterName =
-      (user.user_metadata?.full_name as string | undefined) ||
-      (user.user_metadata?.name as string | undefined) ||
-      user.email ||
-      "Alguém";
-    const acceptUrl = buildAppUrl(`/convite/${invite.id}`);
     const { error: mailError } = await supabase.functions.invoke("send-transactional-email", {
       body: {
         templateName: "workspace-invite",
-        recipientEmail: invite.email,
+        invitationId: invite.id,
         idempotencyKey: `workspace-invite-${invite.id}-resend-${Date.now()}`,
-        templateData: { inviterName, workspaceName, acceptUrl },
       },
     });
     setResendingId(null);
