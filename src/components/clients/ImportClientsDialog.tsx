@@ -28,7 +28,7 @@ import {
   onlyDigits,
 } from "@/lib/documents";
 import type { ExtraFieldDef } from "@/hooks/useClientSettings";
-import type { ClientRecord, ClientType, CustomField } from "./ClientForm";
+import type { ClientType, CustomField } from "./ClientForm";
 
 interface Props {
   open: boolean;
