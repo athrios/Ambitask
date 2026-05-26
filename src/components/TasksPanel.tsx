@@ -48,7 +48,6 @@ import {
   Search,
   MoreHorizontal,
   Calendar as CalendarIcon,
-  EyeOff,
   Circle,
   Flag,
 } from "lucide-react";
@@ -157,20 +156,19 @@ export const TasksPanel = ({
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [editingSubValue, setEditingSubValue] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | "todos">("todos");
+  const [visibleStatuses, setVisibleStatuses] = useState<TaskStatus[]>(
+    () => lsGet<TaskStatus[]>("tasksVisibleStatuses", []),
+  );
   const [priorityFilter, setPriorityFilter] = useState<Priority | "todos">("todos");
   const [dateFilter, setDateFilter] = useState<string | null>(null);
-  const [hiddenStatuses, setHiddenStatuses] = useState<TaskStatus[]>(
-    () => lsGet<TaskStatus[]>("tasksHiddenStatuses", []),
-  );
   const [view, setView] = useState<ViewMode>(
     () => (lsGet<ViewMode>("tasksView", "list")),
   );
   const [newDialogOpen, setNewDialogOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("tasksHiddenStatuses", JSON.stringify(hiddenStatuses));
-  }, [hiddenStatuses]);
+    localStorage.setItem("tasksVisibleStatuses", JSON.stringify(visibleStatuses));
+  }, [visibleStatuses]);
 
   useEffect(() => {
     localStorage.setItem("tasksView", JSON.stringify(view));
@@ -217,13 +215,12 @@ export const TasksPanel = ({
     return tasks.filter((t) => {
       const s = (t.status ?? "pendente") as TaskStatus;
       if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter !== "todos" && s !== statusFilter) return false;
-      if (hiddenStatuses.includes(s)) return false;
+      if (visibleStatuses.length > 0 && !visibleStatuses.includes(s)) return false;
       if (priorityFilter !== "todos" && (t.priority ?? "media") !== priorityFilter) return false;
       if (dateFilter && t.task_date !== dateFilter) return false;
       return true;
     });
-  }, [tasks, search, statusFilter, hiddenStatuses, priorityFilter, dateFilter]);
+  }, [tasks, search, visibleStatuses, priorityFilter, dateFilter]);
 
   // Group tasks by task_date for the list view
   const groupedByDate = useMemo(() => {
@@ -246,7 +243,7 @@ export const TasksPanel = ({
     if (iso === "__nodate__") return "Sem data";
     const d = new Date(iso + "T00:00:00");
     const txt = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    if (iso === today) return `Hoje · ${txt}`;
+    if (iso === today) return `Hoje Â· ${txt}`;
     return txt;
   };
 
@@ -262,7 +259,7 @@ export const TasksPanel = ({
     e?.preventDefault();
     const t = title.trim();
     if (!t) return;
-    if (t.length > 200) return toast.error("Título muito longo");
+    if (t.length > 200) return toast.error("TÃ­tulo muito longo");
     const targetDate = dateFilter ?? (filter === "today" ? today : today);
     const { data, error } = await supabase.from("tasks").insert({
       title: t,
@@ -304,9 +301,9 @@ export const TasksPanel = ({
       parent_recurring_task_id: parentId,
       workspace_id: workspaceId ?? undefined,
     } as never).select().single();
-    if (error) return toast.error("Erro ao gerar recorrência: " + error.message);
-    if (data) await logActivity(userId, "task", data.id, "recurrence_generated", `Próxima ocorrência criada para ${nextISO}`);
-    toast.success(`Próxima ocorrência criada (${nextISO})`);
+    if (error) return toast.error("Erro ao gerar recorrÃªncia: " + error.message);
+    if (data) await logActivity(userId, "task", data.id, "recurrence_generated", `PrÃ³xima ocorrÃªncia criada para ${nextISO}`);
+    toast.success(`PrÃ³xima ocorrÃªncia criada (${nextISO})`);
   };
 
   const updateTask = async (id: string, patch: Partial<Task>) => {
@@ -334,7 +331,7 @@ export const TasksPanel = ({
       "task",
       t.id,
       status === "feita" ? "completed" : "status_changed",
-      `Status: ${t.status ?? "pendente"} → ${status}`,
+      `Status: ${t.status ?? "pendente"} â†’ ${status}`,
     );
     if (status === "feita" && !wasFeita && t.is_recurring) {
       await generateNextOccurrence(t);
@@ -347,8 +344,8 @@ export const TasksPanel = ({
     const t = tasks.find((x) => x.id === id);
     const { error } = await supabase.from("tasks").delete().eq("id", id);
     if (error) return toast.error(error.message);
-    await logActivity(userId, "task", id, "deleted", `Tarefa excluída: "${t?.title ?? ""}"`);
-    toast.success("Tarefa excluída");
+    await logActivity(userId, "task", id, "deleted", `Tarefa excluÃ­da: "${t?.title ?? ""}"`);
+    toast.success("Tarefa excluÃ­da");
     load();
   };
 
@@ -359,7 +356,7 @@ export const TasksPanel = ({
   const saveEdit = async () => {
     if (!editingId) return;
     const v = editingValue.trim();
-    if (!v) return toast.error("Título vazio");
+    if (!v) return toast.error("TÃ­tulo vazio");
     await updateTask(editingId, { title: v });
     setEditingId(null);
   };
@@ -371,7 +368,7 @@ export const TasksPanel = ({
   const saveEditSub = async () => {
     if (!editingSubId) return;
     const v = editingSubValue.trim();
-    if (!v) return toast.error("Título vazio");
+    if (!v) return toast.error("TÃ­tulo vazio");
     const { error } = await supabase.from("subtasks").update({ title: v }).eq("id", editingSubId);
     if (error) return toast.error(error.message);
     setEditingSubId(null);
@@ -452,7 +449,7 @@ export const TasksPanel = ({
   const toggleExpand = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
   const toggleNotes = (id: string) => setNotesOpen((p) => ({ ...p, [id]: !p[id] }));
 
-  // ─────────── shared bits ───────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ shared bits â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const StatusPill = ({
     value,
     onChange,
@@ -581,7 +578,7 @@ export const TasksPanel = ({
                             ? "text-foreground"
                             : "text-muted-foreground opacity-0 group-hover/sub:opacity-100",
                         )}
-                        title="Observação"
+                        title="ObservaÃ§Ã£o"
                       >
                         <StickyNote className="h-3.5 w-3.5" />
                       </button>
@@ -619,7 +616,7 @@ export const TasksPanel = ({
                     <NoteField
                       value={s.notes}
                       onSave={(v) => saveNote(s.id, v, "sub")}
-                      placeholder="Observação..."
+                      placeholder="ObservaÃ§Ã£o..."
                       className="min-h-8 py-1.5 text-xs leading-5"
                       rows={1}
                       autoResize
@@ -668,22 +665,22 @@ export const TasksPanel = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onClick={() => startEdit(t)}>
-            <Pencil className="h-3.5 w-3.5 mr-2" /> Editar título
+            <Pencil className="h-3.5 w-3.5 mr-2" /> Editar tÃ­tulo
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => toggleNotes(`task:${t.id}`)}>
-            <StickyNote className="h-3.5 w-3.5 mr-2" /> Observação
+            <StickyNote className="h-3.5 w-3.5 mr-2" /> ObservaÃ§Ã£o
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => toggleExpand(t.id)}>
             <ChevronDown className="h-3.5 w-3.5 mr-2" /> Sub-tarefas
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setRecurEditingId(t.id)}>
-            <Repeat className="h-3.5 w-3.5 mr-2" /> Recorrência
+            <Repeat className="h-3.5 w-3.5 mr-2" /> RecorrÃªncia
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setReminderTaskId(t.id)}>
             <BellRing className="h-3.5 w-3.5 mr-2" /> Alertas
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setHistoryId(t.id)}>
-            <History className="h-3.5 w-3.5 mr-2" /> Histórico
+            <History className="h-3.5 w-3.5 mr-2" /> HistÃ³rico
           </DropdownMenuItem>
 
           <DropdownMenuItem onClick={() => remove(t.id)} className="text-destructive">
@@ -705,7 +702,7 @@ export const TasksPanel = ({
     </div>
   );
 
-  // ─────────── views ───────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ views â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renderListRow = (t: Task) => {
     const noteKey = `task:${t.id}`;
     const subs = subtasks[t.id] ?? [];
@@ -737,7 +734,7 @@ export const TasksPanel = ({
             <NoteField
               value={t.notes}
               onSave={(v) => saveNote(t.id, v, "task")}
-              placeholder="Observação da tarefa..."
+              placeholder="ObservaÃ§Ã£o da tarefa..."
               className="text-sm min-h-[60px]"
             />
           </div>
@@ -750,7 +747,7 @@ export const TasksPanel = ({
   return (
     <TooltipProvider delayDuration={200}>
       <section className="space-y-4">
-        {/* New task — destaque */}
+        {/* New task â€” destaque */}
         <form onSubmit={add} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 shadow-sm">
           <Plus className="h-4 w-4 text-muted-foreground" />
           <Input
@@ -804,9 +801,9 @@ export const TasksPanel = ({
 
           {/* Data */}
           <Popover>
-            <PopoverTrigger asChild>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
@@ -816,10 +813,10 @@ export const TasksPanel = ({
                     <CalendarIcon className="h-4 w-4" />
                     {dateFilter && <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-foreground" />}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Filtrar por data</TooltipContent>
-              </Tooltip>
-            </PopoverTrigger>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filtrar por data</TooltipContent>
+            </Tooltip>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
@@ -839,59 +836,71 @@ export const TasksPanel = ({
 
           {/* Status */}
           <Popover>
-            <PopoverTrigger asChild>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className={cn("h-9 w-9 p-0 relative", statusFilter !== "todos" && "border-foreground/40 bg-secondary/60")}
+                    className={cn("h-9 w-9 p-0 relative", visibleStatuses.length > 0 && "border-foreground/40 bg-secondary/60")}
                     aria-label="Filtrar por status"
                   >
                     <Circle className="h-4 w-4" />
-                    {statusFilter !== "todos" && (
-                      <span className={cn("absolute top-1 right-1 h-2 w-2 rounded-full", statusPill[statusFilter as TaskStatus])} />
+                    {visibleStatuses.length > 0 && (
+                      <span className="absolute -top-1 -right-1 rounded-full bg-foreground text-background text-[10px] h-4 min-w-4 px-1 inline-flex items-center justify-center tabular-nums">
+                        {visibleStatuses.length}
+                      </span>
                     )}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Filtrar por status</TooltipContent>
-              </Tooltip>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-56 space-y-1">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground px-1">
-                Filtrar por status
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filtrar por status</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="start" className="w-56 space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Mostrar status
               </p>
-              <button
-                onClick={() => setStatusFilter("todos")}
-                className={cn(
-                  "w-full text-left text-xs px-2 py-1.5 rounded-md hover:bg-secondary transition",
-                  statusFilter === "todos" && "bg-secondary font-medium",
-                )}
-              >
-                Todos os status
-              </button>
-              {TASK_STATUS.map((o) => (
-                <button
-                  key={o.value}
-                  onClick={() => setStatusFilter(o.value)}
-                  className={cn(
-                    "w-full text-left text-xs px-2 py-1.5 rounded-md hover:bg-secondary transition flex items-center gap-2",
-                    statusFilter === o.value && "bg-secondary font-medium",
-                  )}
+              <div className="space-y-1">
+                {TASK_STATUS.map((o) => {
+                  const checked = visibleStatuses.includes(o.value);
+                  return (
+                    <label key={o.value} className="flex items-center gap-2 text-xs cursor-pointer py-1">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() =>
+                          setVisibleStatuses((cur) =>
+                            cur.includes(o.value)
+                              ? cur.filter((x) => x !== o.value)
+                              : [...cur, o.value],
+                          )
+                        }
+                        className="h-3.5 w-3.5"
+                      />
+                      <span className={cn("px-1.5 py-0.5 rounded-full text-[11px]", statusPill[o.value])}>
+                        {o.label}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {visibleStatuses.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  onClick={() => setVisibleStatuses([])}
                 >
-                  <span className={cn("px-1.5 py-0.5 rounded-full text-[11px]", statusPill[o.value])}>
-                    {o.label}
-                  </span>
-                </button>
-              ))}
+                  <X className="h-3 w-3" /> Mostrar todos
+                </Button>
+              )}
             </PopoverContent>
           </Popover>
 
           {/* Prioridade */}
           <Popover>
-            <PopoverTrigger asChild>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
@@ -903,10 +912,10 @@ export const TasksPanel = ({
                       <span className={cn("absolute top-1 right-1 h-2 w-2 rounded-full", priorityPill[priorityFilter as Priority])} />
                     )}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>Filtrar por prioridade</TooltipContent>
-              </Tooltip>
-            </PopoverTrigger>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Filtrar por prioridade</TooltipContent>
+            </Tooltip>
             <PopoverContent align="start" className="w-56 space-y-1">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground px-1">
                 Filtrar por prioridade
@@ -934,68 +943,6 @@ export const TasksPanel = ({
                   </span>
                 </button>
               ))}
-            </PopoverContent>
-          </Popover>
-
-          {/* Ocultar por status */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn("h-9 w-9 p-0 relative", hiddenStatuses.length > 0 && "border-foreground/40 bg-secondary/60")}
-                    aria-label="Ocultar tarefas por status"
-                  >
-                    <EyeOff className="h-4 w-4" />
-                    {hiddenStatuses.length > 0 && (
-                      <span className="absolute -top-1 -right-1 rounded-full bg-foreground text-background text-[10px] h-4 min-w-4 px-1 inline-flex items-center justify-center tabular-nums">
-                        {hiddenStatuses.length}
-                      </span>
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ocultar tarefas por status</TooltipContent>
-              </Tooltip>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-56 space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Ocultar status
-              </p>
-              <div className="space-y-1">
-                {TASK_STATUS.map((o) => {
-                  const checked = hiddenStatuses.includes(o.value);
-                  return (
-                    <label key={o.value} className="flex items-center gap-2 text-xs cursor-pointer py-1">
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() =>
-                          setHiddenStatuses((cur) =>
-                            cur.includes(o.value)
-                              ? cur.filter((x) => x !== o.value)
-                              : [...cur, o.value],
-                          )
-                        }
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className={cn("px-1.5 py-0.5 rounded-full text-[11px]", statusPill[o.value])}>
-                        {o.label}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-              {hiddenStatuses.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full h-8 text-xs"
-                  onClick={() => setHiddenStatuses([])}
-                >
-                  <X className="h-3 w-3" /> Limpar ocultações
-                </Button>
-              )}
             </PopoverContent>
           </Popover>
 
@@ -1056,7 +1003,7 @@ export const TasksPanel = ({
         )}
 
 
-        {/* List view — grouped by date */}
+        {/* List view â€” grouped by date */}
         {view === "list" && filtered.length > 0 && (
           <div className="space-y-5">
             <div className="flex items-center justify-between px-1">
@@ -1145,7 +1092,7 @@ export const TasksPanel = ({
                                 <NoteField
                                   value={t.notes}
                                   onSave={(v) => saveNote(t.id, v, "task")}
-                                  placeholder="Observação..."
+                                  placeholder="ObservaÃ§Ã£o..."
                                   className="text-sm"
                                 />
                               </div>
@@ -1190,7 +1137,7 @@ export const TasksPanel = ({
                     <NoteField
                       value={t.notes}
                       onSave={(v) => saveNote(t.id, v, "task")}
-                      placeholder="Observação..."
+                      placeholder="ObservaÃ§Ã£o..."
                       className="text-sm"
                     />
                   )}
@@ -1238,7 +1185,7 @@ export const TasksPanel = ({
                         </div>
                       ))}
                       {colTasks.length === 0 && (
-                        <p className="text-[11px] text-muted-foreground text-center py-4">—</p>
+                        <p className="text-[11px] text-muted-foreground text-center py-4">â€”</p>
                       )}
                     </div>
                   </div>
@@ -1255,7 +1202,7 @@ export const TasksPanel = ({
             <Dialog open onOpenChange={(o) => !o && setRecurEditingId(null)}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Recorrência da tarefa</DialogTitle>
+                  <DialogTitle>RecorrÃªncia da tarefa</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 text-sm">
@@ -1271,7 +1218,7 @@ export const TasksPanel = ({
                   {t.is_recurring && (
                     <>
                       <div>
-                        <label className="text-xs font-medium">Frequência</label>
+                        <label className="text-xs font-medium">FrequÃªncia</label>
                         <Select
                           value={t.recurrence_type ?? "weekly"}
                           onValueChange={(v) => updateTask(t.id, { recurrence_type: v as RecurrenceType } as Partial<Task>)}
@@ -1301,7 +1248,7 @@ export const TasksPanel = ({
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        A próxima ocorrência será criada automaticamente quando esta tarefa for marcada como concluída.
+                        A prÃ³xima ocorrÃªncia serÃ¡ criada automaticamente quando esta tarefa for marcada como concluÃ­da.
                       </p>
                     </>
                   )}
@@ -1316,7 +1263,7 @@ export const TasksPanel = ({
           <Dialog open onOpenChange={(o) => !o && setHistoryId(null)}>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Histórico da tarefa</DialogTitle>
+                <DialogTitle>HistÃ³rico da tarefa</DialogTitle>
               </DialogHeader>
               <ActivityLogList entityType="task" entityId={historyId} />
             </DialogContent>
