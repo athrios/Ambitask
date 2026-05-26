@@ -91,47 +91,55 @@ const normalize = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 
+const HEADER_DICT: Record<string, StandardKey> = {
+  tipo: "client_type",
+  tipodecliente: "client_type",
+  nome: "name",
+  razaosocial: "name",
+  nomerazaosocial: "name",
+  nomefantasia: "trade_name",
+  fantasia: "trade_name",
+  cpf: "document_cpf",
+  cnpj: "document_cnpj",
+  documento: "document_estrangeiro",
+  passaporte: "document_estrangeiro",
+  celular: "phone",
+  telefone: "phone",
+  fone: "phone",
+  whatsapp: "phone",
+  email: "email",
+  cep: "cep",
+  logradouro: "logradouro",
+  endereco: "logradouro",
+  rua: "logradouro",
+  numero: "numero",
+  num: "numero",
+  complemento: "complemento",
+  bairro: "bairro",
+  cidade: "cidade",
+  municipio: "cidade",
+  uf: "uf",
+  estado: "uf",
+  pais: "pais",
+  observacoes: "notes",
+  obs: "notes",
+  notas: "notes",
+};
+
 const guessMapping = (header: string, extras: ExtraFieldDef[]): MappingValue => {
   const n = normalize(header);
-  const dict: Record<string, StandardKey> = {
-    tipo: "client_type",
-    tipodecliente: "client_type",
-    nome: "name",
-    razaosocial: "name",
-    nomerazaosocial: "name",
-    nomefantasia: "trade_name",
-    fantasia: "trade_name",
-    cpf: "document_cpf",
-    cnpj: "document_cnpj",
-    documento: "document_estrangeiro",
-    passaporte: "document_estrangeiro",
-    celular: "phone",
-    telefone: "phone",
-    fone: "phone",
-    whatsapp: "phone",
-    email: "email",
-    cep: "cep",
-    logradouro: "logradouro",
-    endereco: "logradouro",
-    rua: "logradouro",
-    numero: "numero",
-    num: "numero",
-    complemento: "complemento",
-    bairro: "bairro",
-    cidade: "cidade",
-    municipio: "cidade",
-    uf: "uf",
-    estado: "uf",
-    pais: "pais",
-    observacoes: "notes",
-    obs: "notes",
-    notas: "notes",
-  };
-  if (dict[n]) return `std:${dict[n]}`;
+  if (HEADER_DICT[n]) return `std:${HEADER_DICT[n]}`;
   for (const ex of extras) {
     if (normalize(ex.label) === n) return `extra:${ex.id}`;
   }
   return "std:ignore";
+};
+
+const headerHasKnownField = (header: string, extras: ExtraFieldDef[]): boolean => {
+  const n = normalize(header);
+  if (!n) return true;
+  if (HEADER_DICT[n]) return true;
+  return extras.some((ex) => normalize(ex.label) === n);
 };
 
 const parseClientType = (raw: string): ClientType | null => {
