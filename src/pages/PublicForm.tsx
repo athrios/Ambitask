@@ -261,6 +261,11 @@ const PublicForm = () => {
           return toast.error(`Preencha o endereço em "${f.label}" (CEP e número)`);
         }
       }
+      if (f.field_type === "partner_group" && Array.isArray(v)) {
+        const schema = resolvePartnerSchema(f.options);
+        const err = validatePartnerGroup(v as Partner[], schema);
+        if (err) return toast.error(`${f.label}: ${err}`);
+      }
       if (typeof v === "string") {
         const r = publicTextAnswerSchema.safeParse(v);
         if (!r.success) return toast.error(`${f.label}: ${r.error.issues[0]?.message ?? "inválido"}`);
