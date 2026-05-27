@@ -376,7 +376,14 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
                       {qsaCount > 0 && (
                         <Field label="Sócios / QSA" value={`${qsaCount} sócio(s)`} />
                       )}
+                      {r.created_at && (
+                        <p className="text-[10px] text-muted-foreground pt-1">
+                          Cadastrado em{" "}
+                          {new Date(r.created_at).toLocaleDateString("pt-BR")}
+                        </p>
+                      )}
                     </div>
+
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {canEdit && !r._workspace_name && (
