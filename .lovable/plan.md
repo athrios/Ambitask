@@ -1,40 +1,28 @@
-### Security Fix: Add missing UPDATE policy on storage client-attachments bucket
+## Objetivo
+Exibir "Cadastrado em: dd/mm/aaaa" de forma discreta no card do cliente e no rodapé do formulário de edição. Sem campo editável, sem alteração de schema.
 
-**What:**
-Create a migration that adds the missing `UPDATE` policy for the `client-attachments` storage bucket.
+## Contexto
+- Tabela `clients` já tem `created_at timestamptz NOT NULL DEFAULT now()` — nenhuma migração necessária.
+- `ClientRecord` (em `ClientForm.tsx`) já é retornado com todos os campos via `select("*")` no `ClientsPanel`, então `created_at` está disponível no objeto.
 
-**Why:**
-The original migration created SELECT, INSERT and DELETE policies for `client-attachments` but omitted UPDATE. Without this policy, workspace members cannot modify files they have edit permission for, and the security scanner flagged it as a gap.
+## Mudanças
 
-**How:**
-Run the provided SQL via the migration tool. The policy checks:
-- `bucket_id = 'client-attachments'`
-- The user has `edit` permission on the `clientes` module for the workspace extracted from the first path segment (`storage.foldername(name))[1]`)
+### 1. `src/components/clients/ClientsPanel.tsx` — card de listagem
+- Adicionar, ao final do bloco de informações de cada cliente (após `orphanCustoms` / QSA), uma linha discreta:
+  - Texto: `Cadastrado em 27/05/2026`
+  - Estilo: `text-[10px] text-muted-foreground` (metadado, abaixo dos Fields, ou no canto inferior direito do card).
+- Formatação via `Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })` a partir de `r.created_at`.
 
-**SQL to run:**
-```sql
-DROP POLICY IF EXISTS "client-attachments update" ON storage.objects;
+### 2. `src/components/clients/ClientForm.tsx` — rodapé do formulário (apenas em modo edição)
+- Quando `initial?.created_at` existir, exibir no rodapé do formulário (próximo aos botões de salvar/cancelar, ou logo abaixo do título):
+  - `Cadastrado em 27/05/2026 às 14:35`
+- Mesmo estilo discreto (`text-xs text-muted-foreground`).
+- Em modo "novo cliente" (sem `initial`), não exibir nada.
 
-CREATE POLICY "client-attachments update"
-ON storage.objects
-FOR UPDATE
-TO authenticated
-USING (
-  bucket_id = 'client-attachments'
-  AND has_workspace_permission(
-        ((storage.foldername(name))[1])::uuid,
-        auth.uid(),
-        'clientes',
-        'edit'
-      )
-)
-WITH CHECK (
-  bucket_id = 'client-attachments'
-  AND has_workspace_permission(
-        ((storage.foldername(name))[1])::uuid,
-        auth.uid(),
-        'clientes',
-        'edit'
-      )
-);
-```
+### 3. Helper compartilhado
+- Adicionar pequena função utilitária `formatCreatedAt(iso: string, withTime?: boolean)` — pode ficar inline em cada arquivo, ou em `src/lib/utils.ts` se preferir centralizar. Proposta: inline (1-2 linhas), mantém o escopo mínimo.
+
+## Fora de escopo
+- Nenhuma alteração no schema do banco.
+- Nenhuma alteração na lógica de criação/edição de clientes.
+- Nenhuma alteração em tipos do Supabase (campo já existe em `types.ts`).
