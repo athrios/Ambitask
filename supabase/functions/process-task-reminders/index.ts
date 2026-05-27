@@ -174,7 +174,65 @@ ${wsEsc ? `<tr><td style="padding: 4px 12px 4px 0; color: #666;">Ambiente</td><t
     }
   }
 
-  return new Response(JSON.stringify({ processed }), {
+
+  // ── DEADLINE NOTIFICATIONS ──────────────────────────────────────────────────
+  // Runs on every cron tick but deduplicates via source_key (unique index).
+  // Notifies in-app when a process or process step is due TODAY (BRT).
+
+  const todayBRT = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }) // YYYY-MM-DD
+
+  // 1. Processes due today
+  const { data: dueProcesses } = await supabase
+    .from('processes')
+    .select('id, user_id, workspace_id, name, client_name, status')
+    .eq('due_date', todayBRT)
+    .not('status', 'in', '("concluido","cancelado")')
+
+  let deadlineNotified = 0
+  for (const p of dueProcesses ?? []) {
+    const sourceKey = `process_deadline:${p.id}:${todayBRT}`
+    const clientSuffix = p.client_name ? ` (${p.client_name})` : ''
+    const { error } = await supabase.from('notifications').upsert(
+      {
+        workspace_id: p.workspace_id,
+        user_id: p.user_id,
+        title: 'Processo vence hoje',
+        message: `O processo "${p.name}"${clientSuffix} tem prazo para hoje.`,
+        source_key: sourceKey,
+      },
+      { onConflict: 'source_key', ignoreDuplicates: true },
+    )
+    if (!error) deadlineNotified++
+  }
+
+  // 2. Process steps due today
+  const { data: dueSteps } = await supabase
+    .from('process_steps')
+    .select('id, user_id, workspace_id, title, status, process_id, processes!inner(name, client_name, status)')
+    .eq('due_date', todayBRT)
+    .not('status', 'in', '("feita","pulado")')
+    .not('processes.status', 'in', '("concluido","cancelado")')
+
+  for (const s of (dueSteps ?? []) as any[]) {
+    const sourceKey = `step_deadline:${s.id}:${todayBRT}`
+    const proc = s.processes as { name: string; client_name: string } | null
+    const procName = proc?.name ?? 'processo'
+    const clientSuffix = proc?.client_name ? ` (${proc.client_name})` : ''
+    const { error } = await supabase.from('notifications').upsert(
+      {
+        workspace_id: s.workspace_id,
+        user_id: s.user_id,
+        title: 'Etapa de processo vence hoje',
+        message: `A etapa "${s.title}" do processo "${procName}"${clientSuffix} tem prazo para hoje.`,
+        source_key: sourceKey,
+      },
+      { onConflict: 'source_key', ignoreDuplicates: true },
+    )
+    if (!error) deadlineNotified++
+  }
+
+  return new Response(JSON.stringify({ processed, deadlineNotified }), {
     headers: { 'Content-Type': 'application/json' },
   })
 })
+
