@@ -52,32 +52,29 @@ type Section =
   | "done"
   | "settings";
 
-const SECTION_META: Record<
-  Section,
-  { label: string; icon: typeof Sun; subtitle: string }
-> = {
-  today:     { label: "Hoje",          icon: Sun,           subtitle: "O que precisa acontecer hoje." },
-  agenda:    { label: "Agenda",        icon: CalendarRange,  subtitle: "Visão de tarefas e processos por dia, semana e mês." },
-  clients:   { label: "Clientes",      icon: Users,          subtitle: "Cadastro de clientes do ambiente." },
-  schedule:  { label: "Cronograma",    icon: CalendarClock,  subtitle: "Sua agenda do dia, bloco a bloco." },
-  tasks:     { label: "Tarefas",       icon: ListChecks,     subtitle: "Organize suas tarefas por data, status e prioridade." },
-  processes: { label: "Processos",     icon: Workflow,       subtitle: "Processos recorrentes em execução." },
-  forms:     { label: "Formulários",   icon: FileText,       subtitle: "Formulários para receber solicitações." },
-  requests:  { label: "Respostas",     icon: Inbox,          subtitle: "Respostas recebidas dos formulários." },
-  done:      { label: "Concluídas",    icon: CheckCircle2,   subtitle: "O que você já tirou da frente." },
-  settings:  { label: "Configurações", icon: Settings,       subtitle: "Perfil, aparência e ambientes de trabalho." },
+const SECTION_META: Record<Section, { label: string; icon: typeof Sun; subtitle: string }> = {
+  today: { label: "Hoje", icon: Sun, subtitle: "O que precisa acontecer hoje." },
+  agenda: { label: "Agenda", icon: CalendarRange, subtitle: "Visão de tarefas e processos por dia, semana e mês." },
+  clients: { label: "Clientes", icon: Users, subtitle: "Cadastro de clientes do ambiente." },
+  schedule: { label: "Cronograma", icon: CalendarClock, subtitle: "Sua agenda do dia, bloco a bloco." },
+  tasks: { label: "Tarefas", icon: ListChecks, subtitle: "Organize suas tarefas por data, status e prioridade." },
+  processes: { label: "Processos", icon: Workflow, subtitle: "Processos recorrentes em execução." },
+  forms: { label: "Formulários", icon: FileText, subtitle: "Formulários para receber solicitações." },
+  requests: { label: "Respostas", icon: Inbox, subtitle: "Respostas recebidas dos formulários." },
+  done: { label: "Concluídas", icon: CheckCircle2, subtitle: "O que você já tirou da frente." },
+  settings: { label: "Configurações", icon: Settings, subtitle: "Perfil, aparência e ambientes de trabalho." },
 };
 
 const SECTION_MODULE: Record<Exclude<Section, "settings">, ModuleKey> = {
-  today:     "hoje",
-  agenda:    "hoje",
-  clients:   "clientes",
-  schedule:  "cronograma",
-  tasks:     "tarefas",
+  today: "hoje",
+  agenda: "hoje",
+  clients: "clientes",
+  schedule: "cronograma",
+  tasks: "tarefas",
   processes: "processos",
-  forms:     "formularios",
-  requests:  "solicitacoes",
-  done:      "concluidas",
+  forms: "formularios",
+  requests: "solicitacoes",
+  done: "concluidas",
 };
 
 const Index = () => {
@@ -86,14 +83,14 @@ const Index = () => {
   const nav = useNavigate();
   const isMobile = useIsMobile();
 
-  const [date, setDate]             = useState(today());
-  const [tasks, setTasks]           = useState<Task[]>([]);
-  const [section, setSection]       = useState<Section>("today");
+  const [date, setDate] = useState(today());
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [section, setSection] = useState<Section>("today");
   const [searchOpen, setSearchOpen] = useState(false);
 
   // ── Sidebar: starts open on desktop, closed on mobile ────────
   const [sidebarOpen, setSidebarOpen] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true,
   );
 
   // ── Section transition (120 ms fade + lift) ───────────────────
@@ -125,7 +122,7 @@ const Index = () => {
   }, [user, loading, nav]);
 
   useEffect(() => {
-    document.title = "Plano do dia · Tarefas e cronograma";
+    document.title = "Ambitask · Ambiente de Tarefas";
   }, []);
 
   useEffect(() => {
@@ -151,8 +148,16 @@ const Index = () => {
   }, [user, date, section, workspaceId]);
 
   const allSections: Section[] = [
-    "today", "clients", "agenda", "schedule", "tasks", "processes",
-    "forms", "requests", "done", "settings",
+    "today",
+    "clients",
+    "agenda",
+    "schedule",
+    "tasks",
+    "processes",
+    "forms",
+    "requests",
+    "done",
+    "settings",
   ];
 
   const visibleSections = allSections.filter((s) => {
@@ -172,22 +177,16 @@ const Index = () => {
 
   const meta = SECTION_META[section];
   const Icon = meta.icon;
-  const tasksFilter: TasksFilter =
-    section === "today" ? "today" : section === "done" ? "done" : "all";
+  const tasksFilter: TasksFilter = section === "today" ? "today" : section === "done" ? "done" : "all";
 
   const expanded = sidebarOpen || isMobile;
 
   return (
     <main className="min-h-screen bg-background">
       <div className="flex min-h-screen">
-
         {/* ── MOBILE BACKDROP ─────────────────────────────────── */}
         {isMobile && sidebarOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/40"
-            onClick={() => setSidebarOpen(false)}
-            aria-hidden="true"
-          />
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
         )}
 
         {/* ── SIDEBAR ─────────────────────────────────────────── */}
@@ -200,9 +199,7 @@ const Index = () => {
             "md:relative md:inset-auto md:z-auto md:shrink-0",
             // Transitions
             "transition-[width,transform] duration-200 ease-in-out",
-            isMobile
-              ? cn("w-64", sidebarOpen ? "translate-x-0" : "-translate-x-full")
-              : sidebarOpen ? "w-60" : "w-14",
+            isMobile ? cn("w-64", sidebarOpen ? "translate-x-0" : "-translate-x-full") : sidebarOpen ? "w-60" : "w-14",
           )}
         >
           {/* Header */}
@@ -213,15 +210,9 @@ const Index = () => {
             {expanded && (
               <div className="flex flex-col flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <img
-                    src="/ambitask-logo.png"
-                    alt="Ambitask"
-                    className="h-6 w-auto object-contain shrink-0"
-                  />
+                  <img src="/ambitask-logo.png" alt="Ambitask" className="h-6 w-auto object-contain shrink-0" />
                 </div>
-                <p className="text-[11px] text-sidebar-foreground/60 truncate pl-0.5">
-                  {user.email}
-                </p>
+                <p className="text-[11px] text-sidebar-foreground/60 truncate pl-0.5">{user.email}</p>
               </div>
             )}
 
@@ -234,17 +225,12 @@ const Index = () => {
               )}
               title={sidebarOpen ? "Ocultar menu" : "Mostrar menu"}
             >
-              {expanded
-                ? <PanelLeftClose className="h-4 w-4" />
-                : <PanelLeftOpen  className="h-4 w-4" />
-              }
+              {expanded ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </button>
           </div>
 
           {/* Workspace switcher */}
-          {expanded && (
-            <WorkspaceSwitcher onManage={() => changeSection("settings")} />
-          )}
+          {expanded && <WorkspaceSwitcher onManage={() => changeSection("settings")} />}
 
           {/* Search bar */}
           {expanded && (
@@ -258,7 +244,9 @@ const Index = () => {
               >
                 <Search className="h-3.5 w-3.5" />
                 <span className="flex-1 text-left">Buscar...</span>
-                <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-sidebar-accent/60 border border-sidebar-border">⌘K</kbd>
+                <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded bg-sidebar-accent/60 border border-sidebar-border">
+                  ⌘K
+                </kbd>
               </button>
             </div>
           )}
@@ -312,10 +300,8 @@ const Index = () => {
         {/* ── MAIN CONTENT ────────────────────────────────────── */}
         <div className="flex-1 min-w-0">
           <div className="max-w-5xl mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8">
-
             {/* Section header */}
             <header className="mb-4 sm:mb-6 flex items-start gap-3">
-
               {/* Hamburger — mobile only */}
               <button
                 className="md:hidden shrink-0 mt-0.5 p-1.5 -ml-1 rounded-md text-muted-foreground hover:bg-muted/50 transition-colors"
@@ -358,7 +344,7 @@ const Index = () => {
             <div
               style={{
                 transition: "opacity 120ms ease, transform 120ms ease",
-                opacity:   contentVisible ? 1 : 0,
+                opacity: contentVisible ? 1 : 0,
                 transform: contentVisible ? "translateY(0)" : "translateY(6px)",
               }}
             >
@@ -387,12 +373,7 @@ const Index = () => {
                   module={section === "done" ? "concluidas" : "tarefas"}
                   onDenied={() => changeSection("today")}
                 >
-                  <TasksPanel
-                    date={date}
-                    userId={user.id}
-                    filter={tasksFilter}
-                    onTasksChange={setTasks}
-                  />
+                  <TasksPanel date={date} userId={user.id} filter={tasksFilter} onTasksChange={setTasks} />
                 </RequireModule>
               )}
               {section === "processes" && (
@@ -410,9 +391,7 @@ const Index = () => {
                   <RequestsPanel userId={user.id} />
                 </RequireModule>
               )}
-              {section === "settings" && (
-                <SettingsPanel />
-              )}
+              {section === "settings" && <SettingsPanel />}
             </div>
           </div>
         </div>
