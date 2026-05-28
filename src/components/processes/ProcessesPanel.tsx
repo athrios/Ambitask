@@ -19,7 +19,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Play, SkipForward, ChevronDown, CalendarIcon } from "lucide-react";
+import { Plus, Trash2, Settings2, Workflow, ChevronRight, Check, AlertCircle, Play, SkipForward, ChevronDown, CalendarIcon, RotateCcw } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StatusPill } from "@/components/shared/StatusPill";
@@ -1285,8 +1296,25 @@ const ProcessDetail = ({
     onChanged();
   };
 
+  const restartProcess = async () => {
+    const { error: stepsErr } = await supabase
+      .from("process_steps")
+      .update({ status: "pendente", started_at: null, completed_at: null, dismissed_at: null })
+      .eq("process_id", process.id);
+    if (stepsErr) return toast.error(stepsErr.message);
+    const { error: procErr } = await supabase
+      .from("processes")
+      .update({ status: "nao_iniciado" })
+      .eq("id", process.id);
+    if (procErr) return toast.error(procErr.message);
+    await logActivity(userId, "process", process.id, "status_changed", `Processo reiniciado: "${process.name}"`);
+    toast.success("Processo reiniciado");
+    onChanged();
+  };
+
   const canStart = autoStatus === "nao_iniciado" && total > 0 && process.status !== "cancelado";
   const isCancelled = process.status === "cancelado";
+  const canRestart = total > 0 && !canStart;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -1319,6 +1347,28 @@ const ProcessDetail = ({
               <Button size="sm" variant="outline" onClick={cancelProcess}>
                 Cancelar processo
               </Button>
+            )}
+            {canRestart && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground">
+                    <RotateCcw className="h-3.5 w-3.5" /> Reiniciar processo
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reiniciar este processo?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja reiniciar este processo? As etapas voltarão ao estado inicial.
+                      Vínculos, anexos e dados do processo serão mantidos.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={restartProcess}>Reiniciar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             {isCancelled && <span className="text-xs text-muted-foreground">Processo cancelado manualmente.</span>}
           </div>

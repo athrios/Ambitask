@@ -108,7 +108,9 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
     lsGet<string[]>(`clientsHiddenSources_${workspaceId ?? ""}`, []),
   );
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() =>
+    lsGet<string>(`clientsSearch_${workspaceId ?? ""}`, ""),
+  );
   const [editing, setEditing] = useState<ClientRecord | null>(null);
   const [creating, setCreating] = useState(false);
   const [toDelete, setToDelete] = useState<ClientRecord | null>(null);
@@ -161,11 +163,16 @@ export const ClientsPanel = ({ userId }: { userId: string }) => {
 
   useEffect(() => {
     setHiddenSources(lsGet<string[]>(`clientsHiddenSources_${workspaceId ?? ""}`, []));
+    setSearch(lsGet<string>(`clientsSearch_${workspaceId ?? ""}`, ""));
   }, [workspaceId]);
 
   useEffect(() => {
     localStorage.setItem(`clientsHiddenSources_${workspaceId ?? ""}`, JSON.stringify(hiddenSources));
   }, [hiddenSources, workspaceId]);
+
+  useEffect(() => {
+    localStorage.setItem(`clientsSearch_${workspaceId ?? ""}`, JSON.stringify(search));
+  }, [search, workspaceId]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
