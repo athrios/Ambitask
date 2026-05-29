@@ -50,6 +50,8 @@ import {
   Calendar as CalendarIcon,
   Circle,
   Flag,
+  Eye,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -123,6 +125,28 @@ interface Subtask {
 
 export type TasksFilter = "all" | "today" | "done" | "kanban";
 type ViewMode = "list" | "table" | "cards" | "kanban";
+type TaskIndicator = "priority" | "status" | "due" | "progress";
+
+const INDICATOR_LABELS: Record<TaskIndicator, string> = {
+  priority: "Prioridade",
+  status: "Status",
+  due: "Prazo",
+  progress: "Progresso",
+};
+
+const DEFAULT_INDICATORS: Record<ViewMode, TaskIndicator[]> = {
+  list: [],
+  table: ["priority", "status", "due", "progress"],
+  cards: ["priority", "status", "due", "progress"],
+  kanban: ["priority", "due", "progress"],
+};
+
+const AVAILABLE_INDICATORS: Record<ViewMode, TaskIndicator[]> = {
+  list: [],
+  table: ["priority", "status", "due", "progress"],
+  cards: ["priority", "status", "due", "progress"],
+  kanban: ["priority", "due", "progress"], // status is implicit by column
+};
 
 interface Props {
   date: string;
@@ -166,6 +190,14 @@ export const TasksPanel = ({
   const [view, setView] = useState<ViewMode>(
     () => (lsGet<ViewMode>("tasksView", "list")),
   );
+  const [indicators, setIndicators] = useState<Record<ViewMode, TaskIndicator[]>>(
+    () => ({
+      list: lsGet<TaskIndicator[]>("tasksIndicators:list", DEFAULT_INDICATORS.list),
+      table: lsGet<TaskIndicator[]>("tasksIndicators:table", DEFAULT_INDICATORS.table),
+      cards: lsGet<TaskIndicator[]>("tasksIndicators:cards", DEFAULT_INDICATORS.cards),
+      kanban: lsGet<TaskIndicator[]>("tasksIndicators:kanban", DEFAULT_INDICATORS.kanban),
+    }),
+  );
   const [newDialogOpen, setNewDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -175,6 +207,34 @@ export const TasksPanel = ({
   useEffect(() => {
     localStorage.setItem("tasksView", JSON.stringify(view));
   }, [view]);
+
+  useEffect(() => {
+    (Object.keys(indicators) as ViewMode[]).forEach((k) => {
+      localStorage.setItem(`tasksIndicators:${k}`, JSON.stringify(indicators[k]));
+    });
+  }, [indicators]);
+
+  const show = useMemo(() => {
+    const cur = indicators[view] ?? [];
+    return {
+      priority: cur.includes("priority"),
+      status: cur.includes("status"),
+      due: cur.includes("due"),
+      progress: cur.includes("progress"),
+    };
+  }, [indicators, view]);
+
+  const toggleIndicator = (key: TaskIndicator) => {
+    setIndicators((p) => {
+      const cur = p[view] ?? [];
+      const next = cur.includes(key) ? cur.filter((x) => x !== key) : [...cur, key];
+      return { ...p, [view]: next };
+    });
+  };
+
+  const resetIndicators = () => {
+    setIndicators((p) => ({ ...p, [view]: DEFAULT_INDICATORS[view] }));
+  };
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -709,28 +769,49 @@ export const TasksPanel = ({
   const renderListRow = (t: Task) => {
     const noteKey = `task:${t.id}`;
     const subs = subtasks[t.id] ?? [];
+    const hasSubs = subs.length > 0;
+    const doneCount = subs.filter((s) => s.done).length;
+    const isExpanded = !!expanded[t.id];
+    const onRowClick = (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest("[data-row-stop]")) return;
+      if (hasSubs) toggleExpand(t.id);
+    };
     return (
       <div key={t.id} className="group rounded-md hover:bg-secondary/60 transition-colors">
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <button
-            onClick={() => toggleExpand(t.id)}
+        <div
+          onClick={onRowClick}
+          className={cn(
+            "flex items-center gap-2 px-2 py-1.5",
+            hasSubs && "cursor-pointer",
+          )}
+        >
+          <span
             className={cn(
-              "p-0.5 text-muted-foreground hover:text-foreground transition",
-              !subs.length && "invisible",
+              "p-0.5 text-muted-foreground transition",
+              !hasSubs && "invisible",
+              hasSubs && "group-hover:text-foreground",
             )}
+            aria-hidden
           >
-            {expanded[t.id] ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
-          <Checkbox
-            checked={t.done}
-            onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
-          />
-          <TaskTitle t={t} />
-          <div className="shrink-0"><ProgressBadge t={t} /></div>
-          <div className="shrink-0"><PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} /></div>
-          <div className="shrink-0"><StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} /></div>
-          <DueDate t={t} />
-          <div className="shrink-0"><RowActions t={t} /></div>
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </span>
+          <span data-row-stop className="inline-flex">
+            <Checkbox
+              checked={t.done}
+              onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
+            />
+          </span>
+          <span className="flex-1 min-w-0 flex items-center">
+            <TaskTitle t={t} />
+          </span>
+          {hasSubs && (
+            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+              {doneCount}/{subs.length}
+            </span>
+          )}
+          <span data-row-stop className="shrink-0">
+            <RowActions t={t} />
+          </span>
         </div>
         {notesOpen[noteKey] && (
           <div className="px-10 pb-2">
@@ -742,10 +823,11 @@ export const TasksPanel = ({
             />
           </div>
         )}
-        {expanded[t.id] && <div className="pb-3">{SubsBlock({ t })}</div>}
+        {isExpanded && <div className="pb-3">{SubsBlock({ t })}</div>}
       </div>
     );
   };
+
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -949,8 +1031,71 @@ export const TasksPanel = ({
             </PopoverContent>
           </Popover>
 
+          {/* Indicadores (olho) */}
+          <Popover>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-9 w-9 p-0 ml-auto",
+                      view === "list" && "opacity-50",
+                    )}
+                    disabled={view === "list"}
+                    aria-label="Indicadores visíveis"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                {view === "list"
+                  ? "O modo Lista mantém leitura limpa"
+                  : "Indicadores visíveis"}
+              </TooltipContent>
+            </Tooltip>
+            <PopoverContent align="end" className="w-56 space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Indicadores visíveis
+              </p>
+              <div className="space-y-1">
+                {AVAILABLE_INDICATORS[view].map((key) => {
+                  const checked = (indicators[view] ?? []).includes(key);
+                  return (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 text-xs cursor-pointer py-1"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleIndicator(key)}
+                        className="h-3.5 w-3.5"
+                      />
+                      {INDICATOR_LABELS[key]}
+                    </label>
+                  );
+                })}
+                {AVAILABLE_INDICATORS[view].length === 0 && (
+                  <p className="text-xs text-muted-foreground">Nenhum indicador disponível neste modo.</p>
+                )}
+              </div>
+              {AVAILABLE_INDICATORS[view].length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-8 text-xs gap-1.5"
+                  onClick={resetIndicators}
+                >
+                  <RotateCcw className="h-3 w-3" /> Restaurar padrão
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
+
           {/* View switcher */}
-          <div className="flex rounded-md border overflow-hidden bg-card ml-auto">
+          <div className="flex rounded-md border overflow-hidden bg-card">
             {([
               ["list", List, "Lista"],
               ["table", TableIcon, "Tabela"],
@@ -975,6 +1120,7 @@ export const TasksPanel = ({
               </Tooltip>
             ))}
           </div>
+
         </div>
 
         {dateFilter && (
@@ -1042,17 +1188,24 @@ export const TasksPanel = ({
         )}
 
         {/* Table view */}
-        {view === "table" && filtered.length > 0 && (
+        {view === "table" && filtered.length > 0 && (() => {
+          const colCount =
+            3 + // checkbox, title, actions
+            (show.progress ? 1 : 0) +
+            (show.priority ? 1 : 0) +
+            (show.status ? 1 : 0) +
+            (show.due ? 1 : 0);
+          return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Tarefa</TableHead>
-                  <TableHead className="w-32">Progresso</TableHead>
-                  <TableHead className="w-28">Prioridade</TableHead>
-                  <TableHead className="w-32">Status</TableHead>
-                  <TableHead className="w-36">Prazo</TableHead>
+                  {show.progress && <TableHead className="w-32">Progresso</TableHead>}
+                  {show.priority && <TableHead className="w-28">Prioridade</TableHead>}
+                  {show.status && <TableHead className="w-32">Status</TableHead>}
+                  {show.due && <TableHead className="w-36">Prazo</TableHead>}
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1071,25 +1224,33 @@ export const TasksPanel = ({
                         <TableCell>
                           <TaskTitle t={t} />
                         </TableCell>
-                        <TableCell>
-                          <ProgressBadge t={t} />
-                        </TableCell>
-                        <TableCell>
-                          <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
-                        </TableCell>
-                        <TableCell>
-                          <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
-                        </TableCell>
-                        <TableCell>
-                          <DueDate t={t} />
-                        </TableCell>
+                        {show.progress && (
+                          <TableCell>
+                            <ProgressBadge t={t} />
+                          </TableCell>
+                        )}
+                        {show.priority && (
+                          <TableCell>
+                            <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                          </TableCell>
+                        )}
+                        {show.status && (
+                          <TableCell>
+                            <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
+                          </TableCell>
+                        )}
+                        {show.due && (
+                          <TableCell>
+                            <DueDate t={t} />
+                          </TableCell>
+                        )}
                         <TableCell>
                           <RowActions t={t} />
                         </TableCell>
                       </TableRow>
                       {(notesOpen[noteKey] || expanded[t.id]) && (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-muted/30">
+                          <TableCell colSpan={colCount} className="bg-muted/30">
                             {notesOpen[noteKey] && (
                               <div className="mb-2">
                                 <NoteField
@@ -1110,13 +1271,16 @@ export const TasksPanel = ({
               </TableBody>
             </Table>
           </div>
-        )}
+          );
+        })()}
 
         {/* Cards view */}
         {view === "cards" && filtered.length > 0 && (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {filtered.map((t) => {
               const noteKey = `task:${t.id}`;
+              const showPills = show.priority || show.status;
+              const showFooter = show.progress || show.due;
               return (
                 <div key={t.id} className="spotlight rounded-lg border bg-card p-4 space-y-3 transition">
                   <div className="flex items-start gap-2">
@@ -1128,14 +1292,22 @@ export const TasksPanel = ({
                     <TaskTitle t={t} />
                     <RowActions t={t} />
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
-                    <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <ProgressBadge t={t} />
-                    <DueDate t={t} />
-                  </div>
+                  {showPills && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {show.priority && (
+                        <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                      )}
+                      {show.status && (
+                        <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
+                      )}
+                    </div>
+                  )}
+                  {showFooter && (
+                    <div className="flex items-center justify-between">
+                      {show.progress ? <ProgressBadge t={t} /> : <span />}
+                      {show.due ? <DueDate t={t} /> : <span />}
+                    </div>
+                  )}
                   {notesOpen[noteKey] && (
                     <NoteField
                       value={t.notes}
@@ -1166,7 +1338,10 @@ export const TasksPanel = ({
                       <span className="text-[11px] text-muted-foreground tabular-nums">{colTasks.length}</span>
                     </div>
                     <div className="p-2 space-y-2 flex-1">
-                      {colTasks.map((t) => (
+                      {colTasks.map((t) => {
+                        const showRow1 = show.priority || show.progress;
+                        const showRow2 = show.due;
+                        return (
                         <div key={t.id} className="spotlight-sm rounded-md border bg-card p-2.5 space-y-2 group">
                           <div className="flex items-start gap-2">
                             <Checkbox
@@ -1177,18 +1352,24 @@ export const TasksPanel = ({
                             <TaskTitle t={t} />
                             <RowActions t={t} />
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
-                            <ProgressBadge t={t} />
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} size="xs" />
-                            <DueDate t={t} />
-                          </div>
+                          {showRow1 && (
+                            <div className="flex items-center justify-between gap-2">
+                              {show.priority ? (
+                                <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                              ) : <span />}
+                              {show.progress ? <ProgressBadge t={t} /> : <span />}
+                            </div>
+                          )}
+                          {showRow2 && (
+                            <div className="flex items-center justify-end gap-2">
+                              <DueDate t={t} />
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                       {colTasks.length === 0 && (
-                        <p className="text-[11px] text-muted-foreground text-center py-4">â€”</p>
+                        <p className="text-[11px] text-muted-foreground text-center py-4">—</p>
                       )}
                     </div>
                   </div>
@@ -1197,6 +1378,7 @@ export const TasksPanel = ({
             </div>
           </div>
         )}
+
         {/* Recurrence editor */}
         {recurEditingId && (() => {
           const t = tasks.find((x) => x.id === recurEditingId);
