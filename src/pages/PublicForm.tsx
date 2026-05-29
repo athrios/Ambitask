@@ -203,7 +203,7 @@ const PublicForm = () => {
     (async () => {
       const { data } = await supabase
         .from("forms_public" as never)
-        .select("id,user_id,workspace_id,title,description,is_published,logo_path,logo_alignment,submitter_name_label")
+        .select("id,title,description,is_published,logo_path,logo_alignment,submitter_name_label")
         .eq("public_slug", slug)
         .maybeSingle();
       if (!data) { setLoading(false); return; }
