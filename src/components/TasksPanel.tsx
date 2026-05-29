@@ -769,28 +769,49 @@ export const TasksPanel = ({
   const renderListRow = (t: Task) => {
     const noteKey = `task:${t.id}`;
     const subs = subtasks[t.id] ?? [];
+    const hasSubs = subs.length > 0;
+    const doneCount = subs.filter((s) => s.done).length;
+    const isExpanded = !!expanded[t.id];
+    const onRowClick = (e: React.MouseEvent) => {
+      if ((e.target as HTMLElement).closest("[data-row-stop]")) return;
+      if (hasSubs) toggleExpand(t.id);
+    };
     return (
       <div key={t.id} className="group rounded-md hover:bg-secondary/60 transition-colors">
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <button
-            onClick={() => toggleExpand(t.id)}
+        <div
+          onClick={onRowClick}
+          className={cn(
+            "flex items-center gap-2 px-2 py-1.5",
+            hasSubs && "cursor-pointer",
+          )}
+        >
+          <span
             className={cn(
-              "p-0.5 text-muted-foreground hover:text-foreground transition",
-              !subs.length && "invisible",
+              "p-0.5 text-muted-foreground transition",
+              !hasSubs && "invisible",
+              hasSubs && "group-hover:text-foreground",
             )}
+            aria-hidden
           >
-            {expanded[t.id] ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-          </button>
-          <Checkbox
-            checked={t.done}
-            onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
-          />
-          <TaskTitle t={t} />
-          <div className="shrink-0"><ProgressBadge t={t} /></div>
-          <div className="shrink-0"><PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} /></div>
-          <div className="shrink-0"><StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} /></div>
-          <DueDate t={t} />
-          <div className="shrink-0"><RowActions t={t} /></div>
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </span>
+          <span data-row-stop className="inline-flex">
+            <Checkbox
+              checked={t.done}
+              onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
+            />
+          </span>
+          <span data-row-stop className="flex-1 min-w-0 flex items-center">
+            <TaskTitle t={t} />
+          </span>
+          {hasSubs && (
+            <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+              {doneCount}/{subs.length}
+            </span>
+          )}
+          <span data-row-stop className="shrink-0">
+            <RowActions t={t} />
+          </span>
         </div>
         {notesOpen[noteKey] && (
           <div className="px-10 pb-2">
@@ -802,10 +823,11 @@ export const TasksPanel = ({
             />
           </div>
         )}
-        {expanded[t.id] && <div className="pb-3">{SubsBlock({ t })}</div>}
+        {isExpanded && <div className="pb-3">{SubsBlock({ t })}</div>}
       </div>
     );
   };
+
 
   return (
     <TooltipProvider delayDuration={200}>
