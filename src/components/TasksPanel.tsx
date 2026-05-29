@@ -1212,39 +1212,59 @@ export const TasksPanel = ({
               <TableBody>
                 {filtered.map((t) => {
                   const noteKey = `task:${t.id}`;
+                  const subs = subtasks[t.id] ?? [];
+                  const hasSubs = subs.length > 0;
+                  const onRowClick = (e: React.MouseEvent) => {
+                    if ((e.target as HTMLElement).closest("[data-row-stop]")) return;
+                    if (hasSubs) toggleExpand(t.id);
+                  };
                   return (
                     <Fragment key={t.id}>
-                      <TableRow>
+                      <TableRow
+                        onClick={onRowClick}
+                        className={cn(hasSubs && "cursor-pointer")}
+                      >
                         <TableCell>
-                          <Checkbox
-                            checked={t.done}
-                            onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
-                          />
+                          <span data-row-stop className="inline-flex items-center gap-1">
+                            {hasSubs ? (
+                              expanded[t.id] ? (
+                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              )
+                            ) : (
+                              <span className="w-3.5" />
+                            )}
+                            <Checkbox
+                              checked={t.done}
+                              onCheckedChange={(v) => setStatus(t, v ? "feita" : "pendente")}
+                            />
+                          </span>
                         </TableCell>
                         <TableCell>
                           <TaskTitle t={t} />
                         </TableCell>
                         {show.progress && (
-                          <TableCell>
+                          <TableCell data-row-stop>
                             <ProgressBadge t={t} />
                           </TableCell>
                         )}
                         {show.priority && (
-                          <TableCell>
+                          <TableCell data-row-stop>
                             <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
                           </TableCell>
                         )}
                         {show.status && (
-                          <TableCell>
+                          <TableCell data-row-stop>
                             <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
                           </TableCell>
                         )}
                         {show.due && (
-                          <TableCell>
+                          <TableCell data-row-stop>
                             <DueDate t={t} />
                           </TableCell>
                         )}
-                        <TableCell>
+                        <TableCell data-row-stop>
                           <RowActions t={t} />
                         </TableCell>
                       </TableRow>
