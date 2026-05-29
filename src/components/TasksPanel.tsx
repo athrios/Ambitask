@@ -125,6 +125,28 @@ interface Subtask {
 
 export type TasksFilter = "all" | "today" | "done" | "kanban";
 type ViewMode = "list" | "table" | "cards" | "kanban";
+type TaskIndicator = "priority" | "status" | "due" | "progress";
+
+const INDICATOR_LABELS: Record<TaskIndicator, string> = {
+  priority: "Prioridade",
+  status: "Status",
+  due: "Prazo",
+  progress: "Progresso",
+};
+
+const DEFAULT_INDICATORS: Record<ViewMode, TaskIndicator[]> = {
+  list: [],
+  table: ["priority", "status", "due", "progress"],
+  cards: ["priority", "status", "due", "progress"],
+  kanban: ["priority", "due", "progress"],
+};
+
+const AVAILABLE_INDICATORS: Record<ViewMode, TaskIndicator[]> = {
+  list: [],
+  table: ["priority", "status", "due", "progress"],
+  cards: ["priority", "status", "due", "progress"],
+  kanban: ["priority", "due", "progress"], // status is implicit by column
+};
 
 interface Props {
   date: string;
