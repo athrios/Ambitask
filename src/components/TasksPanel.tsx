@@ -1188,17 +1188,24 @@ export const TasksPanel = ({
         )}
 
         {/* Table view */}
-        {view === "table" && filtered.length > 0 && (
+        {view === "table" && filtered.length > 0 && (() => {
+          const colCount =
+            3 + // checkbox, title, actions
+            (show.progress ? 1 : 0) +
+            (show.priority ? 1 : 0) +
+            (show.status ? 1 : 0) +
+            (show.due ? 1 : 0);
+          return (
           <div className="rounded-lg border bg-card overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Tarefa</TableHead>
-                  <TableHead className="w-32">Progresso</TableHead>
-                  <TableHead className="w-28">Prioridade</TableHead>
-                  <TableHead className="w-32">Status</TableHead>
-                  <TableHead className="w-36">Prazo</TableHead>
+                  {show.progress && <TableHead className="w-32">Progresso</TableHead>}
+                  {show.priority && <TableHead className="w-28">Prioridade</TableHead>}
+                  {show.status && <TableHead className="w-32">Status</TableHead>}
+                  {show.due && <TableHead className="w-36">Prazo</TableHead>}
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1217,25 +1224,33 @@ export const TasksPanel = ({
                         <TableCell>
                           <TaskTitle t={t} />
                         </TableCell>
-                        <TableCell>
-                          <ProgressBadge t={t} />
-                        </TableCell>
-                        <TableCell>
-                          <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
-                        </TableCell>
-                        <TableCell>
-                          <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
-                        </TableCell>
-                        <TableCell>
-                          <DueDate t={t} />
-                        </TableCell>
+                        {show.progress && (
+                          <TableCell>
+                            <ProgressBadge t={t} />
+                          </TableCell>
+                        )}
+                        {show.priority && (
+                          <TableCell>
+                            <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                          </TableCell>
+                        )}
+                        {show.status && (
+                          <TableCell>
+                            <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
+                          </TableCell>
+                        )}
+                        {show.due && (
+                          <TableCell>
+                            <DueDate t={t} />
+                          </TableCell>
+                        )}
                         <TableCell>
                           <RowActions t={t} />
                         </TableCell>
                       </TableRow>
                       {(notesOpen[noteKey] || expanded[t.id]) && (
                         <TableRow>
-                          <TableCell colSpan={7} className="bg-muted/30">
+                          <TableCell colSpan={colCount} className="bg-muted/30">
                             {notesOpen[noteKey] && (
                               <div className="mb-2">
                                 <NoteField
@@ -1256,13 +1271,16 @@ export const TasksPanel = ({
               </TableBody>
             </Table>
           </div>
-        )}
+          );
+        })()}
 
         {/* Cards view */}
         {view === "cards" && filtered.length > 0 && (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {filtered.map((t) => {
               const noteKey = `task:${t.id}`;
+              const showPills = show.priority || show.status;
+              const showFooter = show.progress || show.due;
               return (
                 <div key={t.id} className="spotlight rounded-lg border bg-card p-4 space-y-3 transition">
                   <div className="flex items-start gap-2">
@@ -1274,14 +1292,22 @@ export const TasksPanel = ({
                     <TaskTitle t={t} />
                     <RowActions t={t} />
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
-                    <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <ProgressBadge t={t} />
-                    <DueDate t={t} />
-                  </div>
+                  {showPills && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {show.priority && (
+                        <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                      )}
+                      {show.status && (
+                        <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} />
+                      )}
+                    </div>
+                  )}
+                  {showFooter && (
+                    <div className="flex items-center justify-between">
+                      {show.progress ? <ProgressBadge t={t} /> : <span />}
+                      {show.due ? <DueDate t={t} /> : <span />}
+                    </div>
+                  )}
                   {notesOpen[noteKey] && (
                     <NoteField
                       value={t.notes}
@@ -1312,7 +1338,10 @@ export const TasksPanel = ({
                       <span className="text-[11px] text-muted-foreground tabular-nums">{colTasks.length}</span>
                     </div>
                     <div className="p-2 space-y-2 flex-1">
-                      {colTasks.map((t) => (
+                      {colTasks.map((t) => {
+                        const showRow1 = show.priority || show.progress;
+                        const showRow2 = show.due;
+                        return (
                         <div key={t.id} className="spotlight-sm rounded-md border bg-card p-2.5 space-y-2 group">
                           <div className="flex items-start gap-2">
                             <Checkbox
@@ -1323,18 +1352,24 @@ export const TasksPanel = ({
                             <TaskTitle t={t} />
                             <RowActions t={t} />
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
-                            <ProgressBadge t={t} />
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <StatusPill value={t.status ?? "pendente"} onChange={(v) => setStatus(t, v)} size="xs" />
-                            <DueDate t={t} />
-                          </div>
+                          {showRow1 && (
+                            <div className="flex items-center justify-between gap-2">
+                              {show.priority ? (
+                                <PriorityPill value={t.priority ?? "media"} onChange={(v) => updateTask(t.id, { priority: v })} />
+                              ) : <span />}
+                              {show.progress ? <ProgressBadge t={t} /> : <span />}
+                            </div>
+                          )}
+                          {showRow2 && (
+                            <div className="flex items-center justify-end gap-2">
+                              <DueDate t={t} />
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                       {colTasks.length === 0 && (
-                        <p className="text-[11px] text-muted-foreground text-center py-4">â€”</p>
+                        <p className="text-[11px] text-muted-foreground text-center py-4">—</p>
                       )}
                     </div>
                   </div>
@@ -1343,6 +1378,7 @@ export const TasksPanel = ({
             </div>
           </div>
         )}
+
         {/* Recurrence editor */}
         {recurEditingId && (() => {
           const t = tasks.find((x) => x.id === recurEditingId);
